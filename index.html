@@ -95,6 +95,7 @@ body{background:var(--field);color:var(--ink);font-family:var(--font-body);overf
       <button id="play" class="btn" type="button">Грати</button>
       <p id="menuBest" class="best"></p>
       <p id="ver" class="ver"></p>
+      <p class="ver">Гра надсилає анонімну статистику партій, щоб ми її покращували.</p>
     </div>
   </div>
 
@@ -115,7 +116,7 @@ body{background:var(--field);color:var(--ink);font-family:var(--font-body);overf
 'use strict';
 
 /* ================= setup ================= */
-const BUILD = '20261009151016'; // stamped with the release time (UTC) on every push
+const BUILD = '20261009152532'; // stamped with the release time (UTC) on every push
 const cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
@@ -223,11 +224,68 @@ function buzz(pattern) {
   }
 }
 
+/* ================= telemetry ================= */
+// Detailed play log for tuning the game, sent to our collector. Events queue in localStorage
+// while offline, go out in batches, and the rest is handed to sendBeacon when the app hides.
+const LOG_URL = 'https://polygame-logs.91.99.8.73.sslip.io/e';
+const LOG_ON = (() => { try { return window.top === window.self; } catch (e) { return false; } })(); // embedded previews block outside requests anyway
+const LOG = (() => {
+  const rid = () => {
+    try { return Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join(''); }
+    catch (e) { return Math.random().toString(16).slice(2, 18); }
+  };
+  let did = store.get('polygame.did', null);
+  if (!did) { did = rid(); store.set('polygame.did', did); }
+  const sid = rid(), t0 = Date.now();
+  let seq = 0, sending = false, backoff = 0, nextTry = 0;
+  let q = store.get('polygame.logq', []);
+  if (!Array.isArray(q)) q = [];
+  const save = () => store.set('polygame.logq', q);
+  const body = batch => JSON.stringify({ v: 1, build: BUILD, did, events: batch });
+  // remove exactly what was sent: a fetch and a beacon can overlap, so never splice by count
+  const drop = batch => { const sent = new Set(batch); q = q.filter(e => !sent.has(e)); save(); };
+  function ev(type, data) {
+    if (!LOG_ON) return;
+    q.push(Object.assign({}, data, { e: type, t: Date.now(), s: sid, i: ++seq })); // envelope keys always win
+    if (q.length > 2000) q.splice(0, q.length - 2000);
+    save();
+    if (q.length >= 30) flush();
+  }
+  async function flush() {
+    if (!LOG_ON || !LOG_URL || sending || !q.length || Date.now() < nextTry || navigator.onLine === false) return;
+    sending = true;
+    const batch = q.slice(0, 150);
+    try {
+      const res = await fetch(LOG_URL, { method: 'POST', mode: 'cors', keepalive: true, headers: { 'Content-Type': 'text/plain' }, body: body(batch) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      drop(batch); backoff = 0; nextTry = 0;
+    } catch (e) {
+      backoff = Math.min(300000, (backoff || 4000) * 2); nextTry = Date.now() + backoff;
+    }
+    sending = false;
+  }
+  function beacon() {
+    if (!LOG_ON || !LOG_URL || !q.length || !navigator.sendBeacon) return;
+    const batch = q.slice(0, 150);
+    try { if (navigator.sendBeacon(LOG_URL, new Blob([body(batch)], { type: 'text/plain' }))) drop(batch); } catch (e) {}
+  }
+  setInterval(flush, 15000);
+  return { ev, flush, beacon, t0 };
+})();
+const perf = { frames: 0, time: 0, long: 0, at: 0 };
+let errCount = 0, lastDragMs = 0;
+function logErr(m, src, l, c, st) {
+  if (++errCount > 20) return; // a broken frame loop must not flood the log
+  LOG.ev('err', { m: String(m).slice(0, 300), src: String(src || '').slice(-60), l, c, st: String(st || '').slice(0, 900), state: G.state });
+}
+window.addEventListener('error', e => logErr(e.message, e.filename, e.lineno, e.colno, e.error && e.error.stack));
+window.addEventListener('unhandledrejection', e => logErr('unhandled: ' + (e.reason && e.reason.message || e.reason), '', 0, 0, e.reason && e.reason.stack));
+
 /* ================= pieces (Block Blast) ================= */
 function parseRows(rows) {
   const cells = [];
   rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === 'X') cells.push([r, c]); }));
-  return { cells, h: rows.length, w: rows[0].length };
+  return { cells, h: rows.length, w: rows[0].length, key: rows.join('/') };
 }
 const SHAPES = [
   [['X'], .7],
@@ -247,7 +305,7 @@ const SHAPES = [
 ].map(([rows, w]) => Object.assign(parseRows(rows), { wt: w }));
 const SHAPE_SUM = SHAPES.reduce((s, x) => s + x.wt, 0);
 let pid = 0;
-function pieceFrom(shape, color) { return { id: ++pid, cells: shape.cells, h: shape.h, w: shape.w, color, born: now }; }
+function pieceFrom(shape, color) { return { id: ++pid, cells: shape.cells, h: shape.h, w: shape.w, key: shape.key, color, born: now }; }
 function makePiece() {
   let t = Math.random() * SHAPE_SUM, pick = SHAPES[0];
   for (const s of SHAPES) { t -= s.wt; if (t <= 0) { pick = s; break; } }
@@ -314,16 +372,17 @@ function anyFit(p) {
 // Full rows, columns and 3×3 boxes.
 function findClears(g) {
   const groups = [];
-  for (let r = 0; r < 9; r++) if (g[r].every(v => v >= 0)) groups.push(g[r].map((_, c) => [r, c]));
+  const tag = (cells, t) => { cells.t = t; return cells; };
+  for (let r = 0; r < 9; r++) if (g[r].every(v => v >= 0)) groups.push(tag(g[r].map((_, c) => [r, c]), 'r'));
   for (let c = 0; c < 9; c++) {
     let full = true; for (let r = 0; r < 9; r++) if (g[r][c] < 0) { full = false; break; }
-    if (full) groups.push(Array.from({ length: 9 }, (_, r) => [r, c]));
+    if (full) groups.push(tag(Array.from({ length: 9 }, (_, r) => [r, c]), 'c'));
   }
   for (let b = 0; b < 9; b++) {
     const br = Math.floor(b / 3) * 3, bc = (b % 3) * 3, cells = [];
     let full = true;
     for (let r = br; r < br + 3; r++) for (let c = bc; c < bc + 3; c++) { if (g[r][c] < 0) full = false; cells.push([r, c]); }
-    if (full) groups.push(cells);
+    if (full) groups.push(tag(cells, 'b'));
   }
   return groups;
 }
@@ -383,6 +442,7 @@ function newGame() {
   drag = null; chain = null;
   seedBoard();
   G.tray = [pieceFrom(parseRows(['XXX']), randi(4)), pieceFrom(parseRows(['XX', 'XX']), randi(4)), makePiece()];
+  G.gameNo = (Number(store.get('polygame.games', 0)) || 0) + 1; G.gameT0 = Date.now();
   G.tray.forEach((p, i) => { p.born = now + 0.1 + i * 0.07; });
 }
 
@@ -402,10 +462,12 @@ function placePiece(slot, r0, c0) {
   const p = G.tray[slot];
   if (!p || !canPlace(p, r0, c0)) return;
   G.tray[slot] = null;
+  const fillBefore = boardFill();
   for (const [dr, dc] of p.cells) { G.grid[r0 + dr][c0 + dc] = p.color; G.born[r0 + dr][c0 + dc] = now; }
   G.score += p.cells.length; G.placements++;
   sfx.place(); buzz(HAP.light);
   const groups = findClears(G.grid);
+  LOG.ev('place', { g: G.gameNo, p: p.key, c: p.color, r: r0, col: c0, slot, ms: lastDragMs, fill: Math.round(fillBefore * 100) / 100, k: groups.length });
   if (groups.length) resolveClears(groups); else G.streak = 0;
   if (G.tray.every(t => !t)) refillTray();
   if (G.rush.meter >= G.rush.need && !G.pendingRush) {
@@ -446,6 +508,10 @@ function resolveClears(groups) {
   if (streak > 1) addText(sx, sy - 38 * line++, 'КОМБО ×' + Math.min(streak, 6), PAL[1], 24, 1.2, 0.1);
   if (mono) addText(sx, sy - 38 * line++, 'МОНО! +⚡', PAL[monoColor], 24, 1.3, 0.15);
   sfx.clear(k); buzz(k > 1 || mono || streak > 1 ? HAP.success : HAP.double);
+  LOG.ev('clear', {
+    g: G.gameNo, k, n, mono, streak, pts, en: G.energy, m: G.rush.meter,
+    rows: groups.filter(g => g.t === 'r').length, cols: groups.filter(g => g.t === 'c').length, boxes: groups.filter(g => g.t === 'b').length
+  });
   if (!REDUCED) G.shake = Math.min(12, 3 + k * 3);
 }
 
@@ -453,8 +519,11 @@ function checkStuck() {
   if (G.state !== 'puzzle' || G.pendingRush) return;
   const ps = G.tray.filter(Boolean);
   if (!ps.length) return;
-  if (ps.some(anyFit)) return;
-  if (G.energy > 0 && hasPair()) { toast('Фігури не влазять — лопни точки за ⚡', 5); return; }
+  if (ps.some(anyFit)) { if (G.toast && G.toast.stuck) G.toast = null; return; }
+  if (G.energy > 0 && hasPair()) {
+    if (!(G.toast && G.toast.stuck && now < G.toast.until)) LOG.ev('stuck', { g: G.gameNo, en: G.energy, fill: Math.round(boardFill() * 100) / 100 });
+    toast('Фігури не влазять — лопни точки за ⚡', 5); G.toast.stuck = true; return;
+  }
   G.busyUntil = now + 99;
   toast('Ходів більше немає', 3);
   sfx.over(); buzz(HAP.thud);
@@ -470,6 +539,12 @@ function gameOver() {
   $('ovStats').textContent = `Ліній: ${G.stats.lines} · Петель: ${G.stats.loops} · Аркад: ${G.stats.rushes}`;
   $('over').hidden = false;
   try { $('again').focus({ preventScroll: true }); } catch (e) {}
+  LOG.ev('game_over', {
+    g: G.gameNo, score: G.score, sec: Math.round((Date.now() - G.gameT0) / 1000), places: G.placements,
+    lines: G.stats.lines, loops: G.stats.loops, chains: G.stats.chains, rushes: G.stats.rushes,
+    energy: G.energy, fill: Math.round(boardFill() * 100) / 100, best, newBest: G.newBest
+  });
+  LOG.flush();
 }
 
 /* ================= drag (Block Blast) ================= */
@@ -477,6 +552,7 @@ function updateDrag(x, y) {
   drag.x = x; drag.y = y;
   const c = L.board.cell, p = drag.piece;
   drag.lift = drag.touch ? p.h * c / 2 + c * 1.1 : 0; // keep the whole piece clear of the thumb
+  if (!drag.moved) { drag.snap = null; drag.clears = null; return; } // no ghost until the finger actually drags
   const px = x - p.w * c / 2, py = y - drag.lift - p.h * c / 2;
   const col = Math.round((px - L.board.x) / c), row = Math.round((py - L.board.y) / c);
   if (canPlace(p, row, col)) {
@@ -514,7 +590,7 @@ function endChain() {
   const seen = new Set(), uniq = [];
   for (const [r, c] of ch.cells) { const k = r * 9 + c; if (!seen.has(k)) { seen.add(k); uniq.push([r, c]); } }
   if (uniq.length < 2) return;
-  if (G.energy < 1) { toast('Потрібна ⚡ — очищай лінії або грай в аркаду', 3); sfx.bad(); return; }
+  if (G.energy < 1) { toast('Потрібна ⚡ — очищай лінії або грай в аркаду', 3); sfx.bad(); LOG.ev('chain_fail', { g: G.gameNo, n: uniq.length, why: 'energy' }); return; }
   G.energy--; G.chainsUsed++; G.stats.chains++;
   let targets = uniq;
   if (ch.loop) {
@@ -534,6 +610,7 @@ function endChain() {
   sx /= targets.length; sy /= targets.length;
   addText(sx, sy, '+' + pts, INK, 26);
   if (ch.loop) addText(sx, sy - 38, 'ПЕТЛЯ!', PAL[ch.color], 30, 1.3, 0.08);
+  LOG.ev('chain', { g: G.gameNo, n: uniq.length, loop: ch.loop, c: ch.color, popped: targets.length, pts, en: G.energy });
   checkStuck();
 }
 
@@ -546,17 +623,21 @@ function startRush() {
 }
 function startArcade(mode) {
   G.state = 'arcade'; G.arcade = mode; G.lastArcade = mode; G.stats.rushes++;
+  G.busyUntil = now + 0.45; // a tap aimed at the puzzle must not skip the intro
+  LOG.ev('rush', { g: G.gameNo, mode, n: G.stats.rushes, fill: Math.round(boardFill() * 100) / 100 });
   drag = null; chain = null;
   buzz(HAP.double);
   if (mode === 'dtts') dStart(); else sStart();
 }
 function endRush() {
+  LOG.flush();
   G.arcade = null; G.state = 'puzzle'; G.busyUntil = now + 0.35;
   after(0.4, checkStuck);
 }
 function arcadeTap() {
+  if (now < G.busyUntil) return;
   if (G.arcade === 'dtts') {
-    if (D.sub === 'ready') { D.sub = 'fly'; dSpawnCandy(); dFlap(); }
+    if (D.sub === 'ready') { D.sub = 'fly'; if (!D.paused) { dSpawnCandy(); D.t0 = now; } D.paused = false; dFlap(); }
     else if (D.sub === 'fly') dFlap();
     else if (D.sub === 'result' && now - D.resultAt > 0.6) endRush();
   } else if (G.arcade === 'stack') {
@@ -576,8 +657,8 @@ function dGeo() {
 function dStart() {
   const A = L.arena, r = A.w * 0.045, sh = Math.max(14, A.w * 0.06);
   Object.assign(D, {
-    sub: 'ready', touches: 0, candies: 0, eGain: 0, reward: 0, dir: 1, nx: 0.5, ny: 0.45, vy: 0,
-    flapAt: -9, spin: 0, endAt: 0, resultAt: 0, candy: null, spikes: { L: [], R: [] }, won: false
+    sub: 'ready', touches: 0, candies: 0, eGain: 0, reward: 0, dir: 1, nx: 0.5, ny: 0.45, vy: 0, flaps: 0, t0: now, cause: '',
+    flapAt: -9, spin: 0, endAt: 0, resultAt: 0, candy: null, spikes: { L: [], R: [] }, won: false, paused: false
   });
   D.slots = clamp(Math.round((A.h - 2 * sh - r * 1.2) / (r * 2.8)), 7, 13);
   dGenSpikes('R');
@@ -593,7 +674,11 @@ function dGenSpikes(side) {
   D.spikes[other].forEach(s => { if (!s.dying) s.dying = now; });
 }
 function dSpawnCandy() { D.candy = { nx: D.dir === 1 ? 0.78 : 0.22, slot: randi(D.slots), color: randi(4), born: now }; }
-function dFlap() { D.vy = -0.66; D.flapAt = now; sfx.flap(); }
+function dFlap() { D.vy = -0.66; D.flapAt = now; D.flaps++; sfx.flap(); }
+function dResult() {
+  D.sub = 'result'; D.resultAt = now;
+  LOG.ev('dtts_end', { g: G.gameNo, touches: D.touches, candies: D.candies, won: D.won, cause: D.cause, flaps: D.flaps, sec: Math.round((now - D.t0) * 10) / 10, slots: D.slots });
+}
 function dTri(side, s) {
   const { A, r, top, slotH } = dGeo();
   let e = clamp((now - s.born) / 0.16, 0, 1);
@@ -647,16 +732,18 @@ function dDie() {
 }
 function dUpdate(dt) {
   const { A, r, sh, top, slotH } = dGeo();
-  if (D.sub === 'ready') { D.ny = 0.45 + Math.sin(now * 4) * 0.012; return; }
+  if (D.sub === 'ready') { if (!D.paused) D.ny = 0.45 + Math.sin(now * 4) * 0.012; return; }
   if (D.sub === 'fly') {
     const spd = (1 + Math.min(D.touches, 20) * 0.022) * 0.82;
     D.vy += 2.3 * dt; D.ny += D.vy * dt; D.nx += D.dir * spd * dt;
     const rn = r / A.w;
-    if (D.nx + rn >= 1) { D.nx = 1 - rn; D.dir = -1; dTouch('R'); }
-    else if (D.nx - rn <= 0) { D.nx = rn; D.dir = 1; dTouch('L'); }
-    if (D.sub !== 'fly') return;
+    const wall = D.nx + rn >= 1 ? 'R' : D.nx - rn <= 0 ? 'L' : null;
+    if (wall) D.nx = wall === 'R' ? 1 - rn : rn;
     const px = A.x + D.nx * A.w, py = A.y + D.ny * A.h;
-    if (py - r * 0.8 < A.y + sh || py + r * 0.8 > A.y + A.h - sh || dHit(px, py, r)) { dDie(); return; }
+    // hit test first, so the contact frame is checked against the wall the bird just reached
+    const hitTop = py - r * 0.8 < A.y + sh, hitBottom = py + r * 0.8 > A.y + A.h - sh;
+    if (hitTop || hitBottom || dHit(px, py, r)) { D.cause = hitTop ? 'ceiling' : hitBottom ? 'floor' : 'spike'; dDie(); return; }
+    if (wall) { D.dir = wall === 'R' ? -1 : 1; dTouch(wall); if (D.sub !== 'fly') return; }
     if (D.candy) {
       const cx = A.x + D.candy.nx * A.w, cy = top + (D.candy.slot + 0.5) * slotH;
       if (Math.hypot(px - cx, py - cy) < r * 1.7) {
@@ -668,10 +755,10 @@ function dUpdate(dt) {
     }
   } else if (D.sub === 'dead') {
     D.vy += 2.3 * dt; D.ny += D.vy * dt; D.spin += dt * 10;
-    if (now >= D.endAt) { D.sub = 'result'; D.resultAt = now; }
+    if (now >= D.endAt) dResult();
   } else if (D.sub === 'win') {
     D.ny += (0.45 - D.ny) * Math.min(1, dt * 4);
-    if (now >= D.endAt) { D.sub = 'result'; D.resultAt = now; }
+    if (now >= D.endAt) dResult();
   }
 }
 function drawBird(x, y, r, dir, dead) {
@@ -738,7 +825,7 @@ function sGeo() { const A = L.arena, lh = Math.max(14, A.h * 0.05); return { A, 
 function sStart() {
   Object.assign(S, {
     sub: 'ready', level: 0, perfects: 0, streak: 0, eGain: 0, reward: 0,
-    blocks: [{ x: 0.22, w: 0.56 }], cur: null, debris: [], cam: 0, endAt: 0, resultAt: 0, won: false, hue0: randi(360)
+    blocks: [{ x: 0.22, w: 0.56 }], cur: null, debris: [], cam: 0, endAt: 0, resultAt: 0, won: false, hue0: randi(360), t0: now, lastMiss: 0
   });
   sSpawn();
 }
@@ -751,6 +838,7 @@ function sDrop() {
   if (!c) return;
   const { A, lh, baseTop } = sGeo();
   const layer = S.blocks.length, delta = c.x - top.x;
+  S.lastMiss = Math.round(delta * 1000) / 1000;
   if (Math.abs(delta) <= 0.014) {
     const nb = { x: top.x, w: top.w, perfectAt: now };
     S.streak++; S.perfects++;
@@ -791,7 +879,10 @@ function sUpdate(dt) {
   }
   for (const d of S.debris) { d.vy += A.h * 2.4 * dt; d.dy += d.vy * dt; d.rot += d.vr * dt; }
   for (let i = S.debris.length - 1; i >= 0; i--) if (S.debris[i].dy > A.h * 1.6) S.debris.splice(i, 1);
-  if ((S.sub === 'over' || S.sub === 'win') && now >= S.endAt) { S.sub = 'result'; S.resultAt = now; }
+  if ((S.sub === 'over' || S.sub === 'win') && now >= S.endAt) {
+    S.sub = 'result'; S.resultAt = now;
+    LOG.ev('stack_end', { g: G.gameNo, level: S.level, perfects: S.perfects, won: S.won, lastDelta: S.lastMiss, sec: Math.round((now - S.t0) * 10) / 10 });
+  }
 }
 function drawSlab(x, y, w, h, hue) {
   ctx.fillStyle = `hsl(${hue},62%,62%)`; ctx.fillRect(x, y, w, h);
@@ -1104,9 +1195,17 @@ function render() {
 let lastT = null;
 function frame(ms) {
   const t = ms / 1000;
-  const dt = lastT == null ? 0 : Math.min(Math.max(0, t - lastT), 1 / 30);
+  const raw = lastT == null ? 0 : t - lastT;
+  const dt = Math.min(Math.max(0, raw), 1 / 30);
+  if (raw > 0 && raw < 1 && !document.hidden) { // frame pacing, reported every 30 s
+    perf.frames++; perf.time += raw; if (raw > 0.05) perf.long++;
+    if (perf.time >= 30) {
+      LOG.ev('perf', { fps: Math.round(perf.frames / perf.time), long: perf.long, state: G.state });
+      perf.frames = 0; perf.time = 0; perf.long = 0;
+    }
+  }
   lastT = t; now = t;
-  try { update(dt); render(); } catch (e) { console.error(e); }
+  try { update(dt); render(); } catch (e) { console.error(e); logErr(e.message, 'frame', 0, 0, e.stack); }
   requestAnimationFrame(frame);
 }
 
@@ -1117,14 +1216,14 @@ cv.addEventListener('pointerdown', e => {
   audioInit();
   const { x, y } = pt(e), sb = L.sound, vb = L.vibe;
   const near = (r) => x >= r.x - 7 && x <= r.x + r.w + 7 && y >= r.y - 7 && y <= r.y + r.h + 7;
-  if (near(sb)) { muted = !muted; store.set('polygame.muted', muted); if (!muted) sfx.pick(); return; }
-  if (near(vb)) { haptics = !haptics; store.set('polygame.haptics', haptics); if (haptics) buzz(HAP.double); return; }
+  if (near(sb)) { muted = !muted; store.set('polygame.muted', muted); if (!muted) sfx.pick(); LOG.ev('toggle', { what: 'sound', on: !muted }); return; }
+  if (near(vb)) { haptics = !haptics; store.set('polygame.haptics', haptics); if (haptics) buzz(HAP.double); LOG.ev('toggle', { what: 'haptics', on: haptics }); return; }
   if (G.state === 'arcade') { arcadeTap(); return; }
   if (G.state !== 'puzzle' || now < G.busyUntil || activeId !== null) return;
   const slot = traySlotAt(x, y);
   if (slot >= 0 && G.tray[slot]) {
     activeId = e.pointerId; try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-    drag = { slot, piece: G.tray[slot], x, y, touch: e.pointerType !== 'mouse', lift: 0, t0: now, snap: null, clears: null };
+    drag = { slot, piece: G.tray[slot], x, y, sx: x, sy: y, moved: false, touch: e.pointerType !== 'mouse', lift: 0, t0: now, snap: null, clears: null };
     updateDrag(x, y); sfx.pick(); buzz(HAP.tick);
     return;
   }
@@ -1138,15 +1237,23 @@ cv.addEventListener('pointerdown', e => {
 cv.addEventListener('pointermove', e => {
   if (e.pointerId !== activeId) return;
   const { x, y } = pt(e);
-  if (drag) updateDrag(x, y); else if (chain) moveChain(x, y);
+  if (drag) {
+    if (!drag.moved && Math.hypot(x - drag.sx, y - drag.sy) > L.board.cell * 0.3) drag.moved = true;
+    updateDrag(x, y);
+  } else if (chain) moveChain(x, y);
 });
 function release(e, cancel) {
   if (e.pointerId !== activeId) return;
   activeId = null;
   if (drag) {
     const d = drag; drag = null;
-    if (!cancel && d.snap && G.state === 'puzzle') placePiece(d.slot, d.snap.r, d.snap.c);
-    else { d.piece.ret = { x: d.x, y: d.y - d.lift, cs: L.board.cell, t0: now }; if (!cancel) sfx.back(); }
+    lastDragMs = Math.round((now - d.t0) * 1000);
+    if (!cancel && d.moved && d.snap && G.state === 'puzzle') placePiece(d.slot, d.snap.r, d.snap.c);
+    else {
+      d.piece.ret = { x: d.x, y: d.y - d.lift, cs: L.board.cell, t0: now };
+      if (!cancel) sfx.back();
+      if (d.moved) LOG.ev('drop_back', { g: G.gameNo, p: d.piece.key, ms: lastDragMs, cancel: !!cancel, fits: anyFit(d.piece) });
+    }
   }
   else if (chain) { if (cancel) chain = null; else endChain(); }
 }
@@ -1166,15 +1273,21 @@ window.addEventListener('keydown', e => {
 // iOS only unlocks Web Audio inside touchend/click, so listen for those too.
 ['touchend', 'click', 'keydown'].forEach(ev => window.addEventListener(ev, audioInit, { passive: true }));
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) return;
+  LOG.ev('vis', { h: document.hidden ? 1 : 0, state: G.state });
+  if (!document.hidden) { LOG.flush(); return; }
+  LOG.beacon();
   try { if (AC) AC.suspend(); } catch (e) {}
-  if (G.state === 'arcade' && G.arcade === 'dtts' && D.sub === 'fly') { D.sub = 'ready'; D.vy = 0; } // wait for a tap on return
+  if (G.state === 'arcade' && G.arcade === 'dtts' && D.sub === 'fly') { D.sub = 'ready'; D.paused = true; D.vy = 0; } // freeze in place, resume on tap
   if (activeId !== null) { activeId = null; drag = null; chain = null; }
 });
-$('play').addEventListener('click', () => { audioInit(); $('menu').hidden = true; newGame(); buzz(HAP.light); });
+$('play').addEventListener('click', () => {
+  audioInit(); $('menu').hidden = true; newGame(); buzz(HAP.light);
+  store.set('polygame.games', G.gameNo); LOG.ev('game_start', { g: G.gameNo, from: 'menu' });
+});
 $('again').addEventListener('click', () => {
   if (updateReady && applyUpdate()) return; // a newer build is waiting: take it between games
   audioInit(); $('over').hidden = true; newGame();
+  store.set('polygame.games', G.gameNo); LOG.ev('game_start', { g: G.gameNo, from: 'again' });
 });
 
 /* ================= self-update for the home-screen app ================= */
@@ -1186,6 +1299,7 @@ function applyUpdate() {
   try { tried = sessionStorage.getItem('polygame.tried'); } catch (e) {}
   if (tried === latestBuild) return false; // one attempt per build, so a stale cache can never loop
   try { sessionStorage.setItem('polygame.tried', latestBuild); } catch (e) {}
+  LOG.ev('update', { from: BUILD, to: latestBuild, state: G.state }); LOG.beacon();
   location.replace(location.pathname + '?v=' + latestBuild); // a fresh URL skips the cached copy
   return true;
 }
@@ -1217,10 +1331,19 @@ if (window.ResizeObserver) new ResizeObserver(resize).observe(cv); else window.a
 resize();
 newGame(); G.state = 'menu';
 $('menuBest').textContent = best ? `Рекорд: ${best}` : '';
+LOG.ev('start', {
+  build: BUILD, ua: navigator.userAgent, lang: navigator.language,
+  tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ''; } })(),
+  vw: Math.round(W), vh: Math.round(H), sw: screen.width, sh: screen.height, dpr: window.devicePixelRatio || 1,
+  standalone: !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)),
+  vibrate: HAS_VIBRATE, touch: navigator.maxTouchPoints || 0, reduced: REDUCED, haptics, muted, best,
+  games: Number(store.get('polygame.games', 0)) || 0, mem: navigator.deviceMemory || 0, cores: navigator.hardwareConcurrency || 0
+});
+window.addEventListener('pagehide', () => { LOG.ev('end', { sec: Math.round((Date.now() - LOG.t0) / 1000), state: G.state }); LOG.beacon(); });
 requestAnimationFrame(frame);
 
 // handle for automated checks
-window.__poly = { G, D, S, L, startArcade, placePiece, get drag() { return drag; }, get chain() { return chain; } };
+window.__poly = { G, D, S, L, startArcade, placePiece, checkStuck, get drag() { return drag; }, get chain() { return chain; } };
 })();
 </script>
 </body>

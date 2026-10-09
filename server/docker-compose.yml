@@ -1,0 +1,16 @@
+# Coolify: "Docker Compose" build pack, base directory /server.
+# The named volume keeps the logs across redeploys.
+services:
+  collector:
+    build: .
+    restart: unless-stopped
+    environment:
+      - READ_TOKEN=${READ_TOKEN}
+      - IP_SALT=${IP_SALT}
+    expose:
+      - "8080"
+    volumes:
+      - polygame-logs:/data
+
+volumes:
+  polygame-logs:
