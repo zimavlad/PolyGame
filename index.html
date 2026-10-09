@@ -116,7 +116,7 @@ body{background:var(--field);color:var(--ink);font-family:var(--font-body);overf
 'use strict';
 
 /* ================= setup ================= */
-const BUILD = '20261009152532'; // stamped with the release time (UTC) on every push
+const BUILD = '20261009153706'; // stamped with the release time (UTC) on every push
 const cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
@@ -328,7 +328,7 @@ function toast(t, d = 2.5) { G.toast = { text: t, until: now + d }; }
 function gainEnergy(n) { const b = G.energy; G.energy = Math.min(MAX_E, G.energy + n); if (G.energy > b) G.ePulse = now; return G.energy - b; }
 
 /* ================= layout ================= */
-const L = { board: {}, tray: {}, arena: {}, sound: {}, vibe: {}, hudY: 0, hudH: 100, trayCell: 20 };
+const L = { board: {}, tray: {}, arena: {}, hud: {}, sound: {}, vibe: {}, hudY: 0, hudH: 100, trayCell: 20 };
 let W = 1, H = 1, DPR = 1;
 function resize() {
   const r = cv.getBoundingClientRect();
@@ -354,8 +354,12 @@ function layout() {
   L.tray = { x: bx, y: ty, w: B, h: th };
   L.trayCell = Math.min(cell * 0.6, (B / 3) * 0.84 / 5, (B * 0.40 - cell * 0.5) * 0.88 / 5);
   L.arena = { x: bx - 8, y: by - 8, w: B + 16, h: ty + th - by + 16 };
-  L.sound = { x: bx - 2, y: off + 6, w: 30, h: 30 };
-  L.vibe = { x: bx + 34, y: off + 6, w: 30, h: 30 };
+  // the HUD gets at least 320px even when a short landscape screen shrinks the board
+  const hw = Math.min(W - 32, Math.max(B, 320)), hx = Math.round((W - hw) / 2);
+  L.hud = { x: hx, w: hw };
+  const iy = off + Math.min(6, hudH / 2 - 46); // keep the icons clear of the energy pill on short HUDs
+  L.sound = { x: hx - 2, y: iy, w: 30, h: 30 };
+  L.vibe = { x: hx + 34, y: iy, w: 30, h: 30 };
 }
 
 /* ================= board logic (Sudoku + Block Blast) ================= */
@@ -968,18 +972,19 @@ function drawPiece(p, ox, oy, cs, alpha) {
 }
 function drawPanel(title, color, rows, at) {
   const A = L.arena, k = easeOutBack(clamp((now - at) / 0.35, 0, 1));
-  const w = Math.min(A.w * 0.84, 300), h = 76 + rows.length * 34 + 52;
+  const w = Math.min(Math.max(A.w * 0.84, 220), A.w - 8, 300), h = 76 + rows.length * 34 + 52;
   ctx.save(); ctx.translate(A.x + A.w / 2, A.y + A.h / 2); ctx.scale(k, k);
   ctx.shadowColor = 'rgba(39,48,63,0.18)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10;
   ctx.fillStyle = CARD; rrect(-w / 2, -h / 2, w, h, 22); ctx.fill();
   ctx.shadowColor = 'transparent';
-  txt(title, 0, -h / 2 + 36, 19, color, { font: FD, max: w - 32 });
+  const sc = clamp(w / 260, 0.68, 1), pad = 22 * sc; // narrow arenas (short landscape) get smaller type
+  txt(title, 0, -h / 2 + 36, 19 * sc, color, { font: FD, max: w - 32 });
   rows.forEach(([l, v], i) => {
     const y = -h / 2 + 80 + i * 34;
-    txt(l, -w / 2 + 22, y, 15, SOFT, { font: FB, weight: 800, align: 'left' });
-    txt(v, w / 2 - 22, y, 17, INK, { font: FD, align: 'right' });
+    txt(l, -w / 2 + pad, y, 15 * sc, SOFT, { font: FB, weight: 800, align: 'left' });
+    txt(v, w / 2 - pad, y, 17 * sc, INK, { font: FD, align: 'right' });
   });
-  if (now - at > 0.6) txt('Тапни, щоб повернутись', 0, h / 2 - 26, 13, rgba(color, 0.65 + 0.35 * Math.sin(now * 6)), { font: FB, weight: 900 });
+  if (now - at > 0.6) txt('Тапни, щоб повернутись', 0, h / 2 - 26, 13 * sc, rgba(color, 0.65 + 0.35 * Math.sin(now * 6)), { font: FB, weight: 900, max: w - 24 });
   ctx.restore();
 }
 function drawVibe(x, y, on) {
@@ -1127,23 +1132,29 @@ function statusText() {
   return [`Ще ${left} ${left === 1 ? 'очищення' : left < 5 ? 'очищення' : 'очищень'} до ${next}`, SOFT];
 }
 function drawHUD() {
-  const b = L.board, y0 = L.hudY, hh = L.hudH, rowY = y0 + hh * 0.5;
+  const hx = L.hud.x, hw = L.hud.w, y0 = L.hudY, hh = L.hudH, rowY = y0 + hh * 0.5;
   const sb = L.sound;
   drawSpeaker(sb.x + sb.w / 2, sb.y + sb.h / 2, !muted);
   const vb = L.vibe; drawVibe(vb.x + vb.w / 2, vb.y + vb.h / 2, haptics);
   try { ctx.letterSpacing = '1px'; } catch (e) {}
-  txt('РЕКОРД ' + Math.max(best, G.score), b.x + b.s, sb.y + sb.h / 2, 12, SOFT, { font: FB, weight: 900, align: 'right' });
+  txt('РЕКОРД ' + Math.max(best, G.score), hx + hw, sb.y + sb.h / 2, 12, SOFT, { font: FB, weight: 900, align: 'right' });
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  txt(String(Math.round(G.shown)), W / 2, rowY, clamp(hh * 0.32, 28, 42), INK, { font: FD });
+  // score: centred on screen, but never under the energy pill or the rush ring
+  const scoreStr = String(Math.round(G.shown)), ssz = clamp(hh * 0.32, 28, 42);
+  const sl = hx + 84, sr = hx + hw - 48;
+  ctx.font = `800 ${ssz}px ${FD}`;
+  const tw = Math.min(ctx.measureText(scoreStr).width, sr - sl);
+  const sx = clamp(W / 2, sl + tw / 2, sr - tw / 2);
+  txt(scoreStr, sx, rowY, ssz, INK, { font: FD, max: sr - sl });
   // energy pill
   const pk = clamp(1 - (now - G.ePulse) / 0.45, 0, 1);
-  ctx.save(); ctx.translate(b.x + 38, rowY); ctx.scale(1 + 0.15 * pk, 1 + 0.15 * pk);
+  ctx.save(); ctx.translate(hx + 38, rowY); ctx.scale(1 + 0.15 * pk, 1 + 0.15 * pk);
   ctx.fillStyle = CARD; rrect(-38, -17, 76, 34, 17); ctx.fill();
   bolt(-16, 0, 20, PAL[1]);
   txt(String(G.energy), 12, 1, 18, INK, { font: FD });
   ctx.restore();
   // rush ring
-  const rx = b.x + b.s - 21, R = 17;
+  const rx = hx + hw - 21, R = 17;
   const mode = G.state === 'arcade' ? G.arcade : (G.rush.count % 2 === 0 ? 'dtts' : 'stack');
   const prog = G.state === 'arcade' ? 1 : clamp(G.rush.meter / G.rush.need, 0, 1);
   const col = mode === 'dtts' ? PAL[0] : PAL[3];
@@ -1159,7 +1170,7 @@ function drawHUD() {
     [[12, 5], [10, 0], [8, -5]].forEach(([w, dy], i) => { ctx.fillStyle = `hsl(${250 + i * 18},62%,64%)`; ctx.fillRect(rx - w / 2, rowY + dy - 2, w, 4.5); });
   }
   const [st, sc] = statusText();
-  txt(st, W / 2, y0 + hh - 14, 13.5, sc, { font: FB, weight: 800, max: b.s + 16 });
+  txt(st, W / 2, y0 + hh - 14, 13.5, sc, { font: FB, weight: 800, max: hw });
 }
 
 /* ================= loop ================= */
@@ -1216,8 +1227,9 @@ cv.addEventListener('pointerdown', e => {
   audioInit();
   const { x, y } = pt(e), sb = L.sound, vb = L.vibe;
   const near = (r) => x >= r.x - 7 && x <= r.x + r.w + 7 && y >= r.y - 7 && y <= r.y + r.h + 7;
-  if (near(sb)) { muted = !muted; store.set('polygame.muted', muted); if (!muted) sfx.pick(); LOG.ev('toggle', { what: 'sound', on: !muted }); return; }
-  if (near(vb)) { haptics = !haptics; store.set('polygame.haptics', haptics); if (haptics) buzz(HAP.double); LOG.ev('toggle', { what: 'haptics', on: haptics }); return; }
+  const nearer = (a, o) => near(a) && (!near(o) || Math.abs(x - (a.x + a.w / 2)) <= Math.abs(x - (o.x + o.w / 2)));
+  if (nearer(sb, vb)) { muted = !muted; store.set('polygame.muted', muted); if (!muted) sfx.pick(); LOG.ev('toggle', { what: 'sound', on: !muted }); return; }
+  if (nearer(vb, sb)) { haptics = !haptics; store.set('polygame.haptics', haptics); if (haptics) buzz(HAP.double); LOG.ev('toggle', { what: 'haptics', on: haptics }); return; }
   if (G.state === 'arcade') { arcadeTap(); return; }
   if (G.state !== 'puzzle' || now < G.busyUntil || activeId !== null) return;
   const slot = traySlotAt(x, y);
