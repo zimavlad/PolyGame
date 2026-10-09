@@ -204,8 +204,8 @@ const SHAPES = [
   [['XXX', '.X.'], .2], [['.X.', 'XXX'], .2], [['X.', 'XX', 'X.'], .2], [['.X', 'XX', '.X'], .2],
   [['XX.', '.XX'], .17], [['.XX', 'XX.'], .17], [['X.', 'XX', '.X'], .17], [['.X', 'XX', 'X.'], .17]
 ].map(([rows, w]) => Object.assign(parseRows(rows), { wt: w }));
-// Sudoku pieces carry distinct digits, so big shapes rarely fit: keep them to four cells.
-const SUDOKU_SHAPES = SHAPES.filter(s => s.cells.length <= 4).map(s => Object.assign({}, s, { wt: s.cells.length === 1 ? 1.4 : s.cells.length === 2 ? 1.3 : s.wt }));
+// Sudoku pieces carry digits, so they stay small: mostly singles, dominoes and triominoes.
+const SUDOKU_SHAPES = SHAPES.filter(s => s.cells.length <= 4).map(s => Object.assign({}, s, { wt: [0, 1.5, 1.4, 0.8, 0.25][s.cells.length] * (s.cells.length >= 3 ? s.wt / 0.7 : 1) }));
 let pid = 0;
 function pieceFrom(shape, color) { return { id: ++pid, cells: shape.cells, h: shape.h, w: shape.w, key: shape.key, color, born: now, dig: null }; }
 function weighted(list) {
@@ -325,8 +325,38 @@ function neededDigits() {
   }
   return w;
 }
+// Sudoku levels keep one solved grid (G.sol). A new piece takes its digits from the solution at an empty spot it
+// fits, preferring spots that finish nearly-full rows, columns and boxes, so every piece has a right place to go.
+// How close the fullest group through (r, c) is to completion: 0 (empty) .. 8 (one cell left).
+function groupFill(r, c) {
+  let row = 0, col = 0, box = 0;
+  for (let k = 0; k < 9; k++) { if (G.grid[r][k] >= 0) row++; if (G.grid[k][c] >= 0) col++; }
+  const br = r - r % 3, bc = c - c % 3;
+  for (let rr = br; rr < br + 3; rr++) for (let cc = bc; cc < bc + 3; cc++) if (G.grid[rr][cc] >= 0) box++;
+  return Math.max(row, col, box);
+}
+function assignFromSolution(p) {
+  const spots = [];
+  for (let r = 0; r <= 9 - p.h; r++) for (let c = 0; c <= 9 - p.w; c++) {
+    if (!fitsGeom(p, r, c)) continue;
+    const dig = p.cells.map(([dr, dc]) => G.sol[r + dr][c + dc]);
+    p.dig = dig;
+    if (clashesFor(p, r, c).length) continue;
+    // spots that finish nearly-full groups weigh far more, so the tray keeps offering the missing pieces
+    const w = p.cells.reduce((s, [dr, dc]) => s + 1 + 60 * Math.pow(groupFill(r + dr, c + dc) / 8, 4), 0) / p.cells.length;
+    spots.push({ dig, w });
+  }
+  if (!spots.length) { p.dig = null; return false; }
+  spots.sort((a, b) => b.w - a.w);
+  if (Math.random() < 0.45) { p.dig = spots[0].dig; return true; }
+  let t = Math.random() * spots.reduce((s, x) => s + x.w, 0), pickd = spots[0];
+  for (const sp of spots) { t -= sp.w; if (t <= 0) { pickd = sp; break; } }
+  p.dig = pickd.dig;
+  return true;
+}
 // Pick distinct digits for a sudoku piece so it has somewhere legal to go, leaning toward needed digits.
 function assignDigits(p) {
+  if (G.sol && assignFromSolution(p)) return;
   const need = neededDigits();
   const draw = () => {
     const pool = [1, 2, 3, 4, 5, 6, 7, 8, 9], out = [];
@@ -402,7 +432,7 @@ function sudokuSolution() {
 
 /* ================= boards ================= */
 function resetBoard() {
-  G.grid = emptyGrid(-1); G.born = emptyGrid(-9); G.dig = emptyGrid(0);
+  G.grid = emptyGrid(-1); G.born = emptyGrid(-9); G.dig = emptyGrid(0); G.sol = null;
   timers.length = 0; parts.length = 0; pops.length = 0; texts.length = 0;
   drag = null; chain = null; activeId = null;
 }
@@ -434,14 +464,58 @@ const SEEDS = {
   },
   random(n = 14) { for (let i = 0; i < n; i++) { const r = randi(9), c = randi(9); if (G.grid[r][c] < 0) put(r, c, randi(4)); } },
   dense() { SEEDS.random(26); },
-  sudokuEasy() { sudokuGivens(18, 4); },
+  sudokuEasy() { sudokuFocus('b1', 12); },
   sudoku() { sudokuGivens(20, -1); },
   sudokuHard() { sudokuGivens(28, -1); }
 };
+// 'sudoku:<kind><n>' seeds: n groups start six-ninths full (b boxes, r rows, l rows and columns, m mixed),
+// which is exactly what the level asks the player to finish, like a real sudoku with givens.
+function seedFor(name) {
+  const m = /^sudoku:([brlm])(\d)$/.exec(name || '');
+  if (m) return () => sudokuFocus(m[1] + m[2], 10);
+  return SEEDS[name] || SEEDS.random;
+}
+function sudokuFocus(spec, extra) {
+  const S = sudokuSolution();
+  G.sol = S;
+  const kind = spec[0], n = Number(spec.slice(1)) || 1;
+  const cellsOf = (t, i) => {
+    if (t === 'r') return Array.from({ length: 9 }, (_, k) => [i, k]);
+    if (t === 'c') return Array.from({ length: 9 }, (_, k) => [k, i]);
+    const br = Math.floor(i / 3) * 3, bc = (i % 3) * 3, out = [];
+    for (let r = br; r < br + 3; r++) for (let c = bc; c < bc + 3; c++) out.push([r, c]);
+    return out;
+  };
+  const idx = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  for (let k = 0; k < n; k++) {
+    const t = kind === 'm' ? ['b', 'r', 'c'][k % 3] : kind === 'l' ? (k % 2 ? 'c' : 'r') : kind;
+    const cells = cellsOf(t, idx[k]);
+    let have = cells.filter(([r, c]) => G.grid[r][c] >= 0).length;
+    for (const [r, c] of shuffle(cells.slice())) { if (have >= 6) break; if (G.grid[r][c] < 0) { put(r, c, randi(4), S[r][c]); have++; } }
+  }
+  // never start with a finished group
+  for (let guard = 0; guard < 20; guard++) {
+    const full = findClears(G.grid);
+    if (!full.length) break;
+    const [r, c] = pick(full[0]); G.grid[r][c] = -1; G.dig[r][c] = 0;
+  }
+  sudokuGivensFrom(S, extra);
+}
 // Givens come from one solved grid, so the starting position never breaks the rule.
 // focusBox: a box that starts six-ninths full, so the first sudoku box is within reach.
+function sudokuGivensFrom(S, n) {
+  let guard = 0;
+  while (guard++ < 400 && n > 0) {
+    const r = randi(9), c = randi(9);
+    if (G.grid[r][c] >= 0) continue;
+    put(r, c, randi(4), S[r][c]);
+    if (findClears(G.grid).length) { G.grid[r][c] = -1; G.dig[r][c] = 0; continue; }
+    n--;
+  }
+}
 function sudokuGivens(n, focusBox) {
   const S = sudokuSolution();
+  G.sol = S;
   if (focusBox >= 0) {
     const br = Math.floor(focusBox / 3) * 3, bc = (focusBox % 3) * 3;
     const cells = []; for (let r = br; r < br + 3; r++) for (let c = bc; c < bc + 3; c++) cells.push([r, c]);
@@ -470,7 +544,7 @@ function newPuzzle(opts) {
     busyUntil: 0, pendingRush: false, toast: null, arenaVis: 0, newBest: false,
     mode: opts.mode, sudoku: !!opts.sudoku, lvl: opts.lvl || null, boardVisible: true, state: 'puzzle'
   });
-  (SEEDS[opts.seed] || SEEDS.random)();
+  seedFor(opts.seed)();
   if (opts.mode === 'endless') {
     G.tray = [pieceFrom(parseRows(['XXX']), randi(4)), pieceFrom(parseRows(['XX', 'XX']), randi(4)), makePiece()];
     pickNextRush();
@@ -516,6 +590,8 @@ function placePiece(slot, r0, c0) {
   if (groups.length) resolveClears(groups); else G.streak = 0;
   if (G.lvl) G.lvl.movesLeft--;
   if (G.tray.every(t => !t)) refillTray();
+  // sudoku: a piece whose only right spot got taken re-rolls its digits instead of dead-locking the tray
+  else if (G.sudoku) G.tray.forEach(t => { if (t && !anyFit(t)) { assignDigits(t); t.born = now; } });
   if (G.mode === 'level') { if (levelCheck(true)) return; }
   if (G.mode === 'endless' && G.rush.meter >= G.rush.need && !G.pendingRush && ARC.size()) {
     G.pendingRush = true; G.busyUntil = now + 1.0;

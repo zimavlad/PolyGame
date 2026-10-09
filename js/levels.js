@@ -14,16 +14,16 @@ const HAND = [
   { title: 'Червоні точки', moves: 12, energy: 4, goals: [{ t: 'color', c: 0, n: 10 }], seed: 'pairs', tip: 'Веди пальцем по сусідніх точках одного кольору: вони лопаються за 1 ⚡.' },
   { kind: 'arcade', game: 'spike' },
   { title: 'Петля', moves: 14, energy: 3, goals: [{ t: 'loops', n: 1 }, { t: 'lines', n: 2 }], seed: 'square', tip: 'Замкни петлю з чотирьох точок одного кольору: зникне весь цей колір.' },
-  { title: 'Перше судоку', sudoku: true, moves: 14, goals: [{ t: 'boxes', n: 1 }], seed: 'sudokuEasy', tip: 'Цифра не повторюється в рядку, стовпці й квадраті 3×3. Повний квадрат — розв’язане судоку.' },
-  { title: 'Два кольори', moves: 16, goals: [{ t: 'color', c: 1, n: 12 }, { t: 'color', c: 2, n: 12 }], seed: 'random' },
+  { title: 'Перше судоку', sudoku: true, moves: 14, goals: [{ t: 'boxes', n: 1 }], seed: 'sudoku:b1', tip: 'Цифра не повторюється в рядку, стовпці й квадраті 3×3. Повний квадрат — розв’язане судоку.' },
+  { title: 'Два кольори', moves: 18, energy: 4, goals: [{ t: 'color', c: 1, n: 10 }, { t: 'color', c: 2, n: 10 }], seed: 'random' },
   { kind: 'arcade', game: 'stack' },
-  { title: 'Судоку-лінії', sudoku: true, moves: 16, goals: [{ t: 'lines', n: 2 }], seed: 'sudoku', tip: 'Повний рядок у судоку завжди містить усі цифри 1–9.' },
-  { title: 'Рахунок', moves: 15, goals: [{ t: 'score', n: 700 }], seed: 'random', tip: 'Очищення кілька ходів підряд множать очки.' },
+  { title: 'Судоку-лінії', sudoku: true, moves: 18, goals: [{ t: 'lines', n: 2 }], seed: 'sudoku:r2', tip: 'Добудуй рядки: у повному рядку судоку є всі цифри 1–9.' },
+  { title: 'Рахунок', moves: 16, goals: [{ t: 'score', n: 350 }], seed: 'random', tip: 'Очищення кілька ходів підряд множать очки.' },
   { kind: 'arcade', game: 'knife' },
-  { title: 'Судоку-квадрати', sudoku: true, moves: 18, goals: [{ t: 'boxes', n: 2 }, { t: 'lines', n: 1 }], seed: 'sudoku' },
-  { title: 'Петлі', moves: 18, energy: 4, goals: [{ t: 'loops', n: 2 }, { t: 'color', c: 3, n: 15 }], seed: 'random' },
+  { title: 'Судоку-квадрати', sudoku: true, moves: 20, goals: [{ t: 'boxes', n: 2 }], seed: 'sudoku:b2' },
+  { title: 'Петлі', moves: 20, energy: 4, goals: [{ t: 'loops', n: 2 }, { t: 'color', c: 3, n: 12 }], seed: 'random' },
   { kind: 'arcade', game: 'zigzag' },
-  { title: 'Велике судоку', sudoku: true, moves: 20, goals: [{ t: 'lines', n: 4 }], seed: 'sudoku' }
+  { title: 'Велике судоку', sudoku: true, moves: 24, goals: [{ t: 'boxes', n: 1 }, { t: 'lines', n: 2 }], seed: 'sudoku:m3' }
 ];
 function availableArcade() {
   const all = PG.arcade.list().map(d => d.id);
@@ -35,17 +35,18 @@ function generated(n, noArcade) {
   const k = n - HAND.length, step = Math.floor((k - 1) / 3), cyc = (k - 1) % 3, rng = seeded(n);
   if (cyc === 2 && !noArcade) { const ids = availableArcade(); if (ids.length) return { kind: 'arcade', game: ids[(step + 4) % ids.length] }; }
   if (cyc === 1) {
-    const kinds = [[{ t: 'boxes', n: 2 + step }], [{ t: 'lines', n: 3 + step }], [{ t: 'boxes', n: 1 + step }, { t: 'lines', n: 2 + step }]];
-    return { title: 'Судоку', sudoku: true, moves: 18 + step * 2, goals: kinds[step % 3], seed: step > 2 ? 'sudokuHard' : 'sudoku' };
+    const n = Math.min(2 + Math.floor(step / 2), 4), v = step % 3;
+    const goals = v === 0 ? [{ t: 'boxes', n }] : v === 1 ? [{ t: 'lines', n }] : [{ t: 'boxes', n: 1 }, { t: 'lines', n: n - 1 }];
+    return { title: 'Судоку', sudoku: true, moves: 12 + n * 4, goals, seed: `sudoku:${v === 0 ? 'b' : v === 1 ? 'l' : 'm'}${n}` };
   }
   const c1 = Math.floor(rng() * 4), c2 = (c1 + 1 + Math.floor(rng() * 3)) % 4;
   const kinds = [
-    [{ t: 'color', c: c1, n: 14 + step * 3 }, { t: 'lines', n: 2 + step }],
-    [{ t: 'loops', n: 1 + Math.floor(step / 2) }, { t: 'color', c: c2, n: 12 + step * 3 }],
+    [{ t: 'color', c: c1, n: 12 + step * 2 }, { t: 'lines', n: 2 + step }],
+    [{ t: 'loops', n: 1 + Math.floor(step / 2) }, { t: 'color', c: c2, n: 10 + step * 2 }],
     [{ t: 'boxes', n: 2 + step }, { t: 'color', c: c1, n: 10 + step * 2 }],
-    [{ t: 'score', n: 900 + step * 250 }]
+    [{ t: 'score', n: 550 + step * 150 }]
   ];
-  return { title: 'Завдання', moves: 16 + step * 2, goals: kinds[step % kinds.length], seed: step > 2 ? 'dense' : 'random' };
+  return { title: 'Завдання', moves: 18 + step * 2, energy: 4, goals: kinds[step % kinds.length], seed: step > 2 ? 'dense' : 'random' };
 }
 function levelDef(n) {
   let d = n <= HAND.length ? HAND[n - 1] : generated(n);
