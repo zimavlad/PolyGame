@@ -1052,7 +1052,7 @@ function wrapText(s, maxW, font) {
 function drawAd() {
   if (!AD.def) return;
   const R = adRects(), F = R.frame, A = R.area;
-  ctx.fillStyle = 'rgba(25,30,40,0.55)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(25,30,40,0.55)'; ctx.fillRect(-20, -20, W + 40, H + 40);
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
   ctx.fillStyle = CARD; rrect(F.x, F.y, F.w, F.h, 26); ctx.fill(); ctx.restore();
   // header: label and close
@@ -1480,13 +1480,19 @@ function render() {
   if (G.shake > 0.3) ctx.translate((Math.random() * 2 - 1) * G.shake, (Math.random() * 2 - 1) * G.shake);
   if (G.boardVisible) { drawBoard(); drawTray(); drawPops(); }
   drawArena();
-  drawParticles(); drawTexts();
+  const ad = G.state === 'ad';
+  if (!ad) { drawParticles(); drawTexts(); }
   ctx.restore();
   if (G.state !== 'menu') drawHUD();
   if (G.boardVisible && G.state === 'puzzle') drawLevelIntro();
   drawToast();
   if (drag) drawDrag();
-  if (G.state === 'ad') { drawAd(); drawParticles(); }
+  if (ad) { // the ad sits above everything, so its particles, pop-up texts and shake go on top of it
+    ctx.save();
+    if (G.shake > 0.3) ctx.translate((Math.random() * 2 - 1) * G.shake, (Math.random() * 2 - 1) * G.shake);
+    drawAd(); drawParticles(); drawTexts();
+    ctx.restore();
+  }
 }
 let lastT = null;
 function frame(ms) {
