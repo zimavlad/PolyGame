@@ -70,6 +70,7 @@ body{background:var(--field);color:var(--ink);font-family:var(--font-body);overf
 .eyebrow{text-transform:uppercase;letter-spacing:.12em;font-size:12px;font-weight:900;color:var(--ink-soft);margin:0}
 .big{font-family:var(--font-display);font-weight:800;font-size:56px;line-height:1.1;margin:8px 0 2px;font-variant-numeric:tabular-nums}
 .newbest{color:var(--coral);font-weight:900;margin:0}
+.ver{margin:6px 0 0;color:var(--ink-soft);opacity:.7;font-weight:700;font-size:11px;font-variant-numeric:tabular-nums}
 .stats{color:var(--ink-soft);font-weight:700;font-size:13px;margin:8px 0 20px}
 @media (prefers-reduced-motion:reduce){.dots i{animation:none}}
 </style>
@@ -93,6 +94,7 @@ body{background:var(--field);color:var(--ink);font-family:var(--font-body);overf
       </ul>
       <button id="play" class="btn" type="button">Грати</button>
       <p id="menuBest" class="best"></p>
+      <p id="ver" class="ver"></p>
     </div>
   </div>
 
@@ -113,6 +115,7 @@ body{background:var(--field);color:var(--ink);font-family:var(--font-body);overf
 'use strict';
 
 /* ================= setup ================= */
+const BUILD = '20261009151016'; // stamped with the release time (UTC) on every push
 const cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
@@ -1169,7 +1172,45 @@ document.addEventListener('visibilitychange', () => {
   if (activeId !== null) { activeId = null; drag = null; chain = null; }
 });
 $('play').addEventListener('click', () => { audioInit(); $('menu').hidden = true; newGame(); buzz(HAP.light); });
-$('again').addEventListener('click', () => { audioInit(); $('over').hidden = true; newGame(); });
+$('again').addEventListener('click', () => {
+  if (updateReady && applyUpdate()) return; // a newer build is waiting: take it between games
+  audioInit(); $('over').hidden = true; newGame();
+});
+
+/* ================= self-update for the home-screen app ================= */
+// iOS keeps a home-screen web app alive in memory and GitHub Pages caches for ~10 min,
+// so the page asks the server for its own latest copy and compares build stamps.
+let updateReady = false, latestBuild = BUILD;
+function applyUpdate() {
+  let tried = null;
+  try { tried = sessionStorage.getItem('polygame.tried'); } catch (e) {}
+  if (tried === latestBuild) return false; // one attempt per build, so a stale cache can never loop
+  try { sessionStorage.setItem('polygame.tried', latestBuild); } catch (e) {}
+  location.replace(location.pathname + '?v=' + latestBuild); // a fresh URL skips the cached copy
+  return true;
+}
+async function checkUpdate() {
+  if (!/^https?:$/.test(location.protocol) || window.top !== window.self) return;
+  try {
+    const res = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const m = (await res.text()).match(/const BUILD = '(\d+)'/);
+    if (!m || m[1] <= BUILD) return;
+    updateReady = true; latestBuild = m[1];
+    if (G.state === 'menu' || G.state === 'over') applyUpdate();
+    else toast('Є нова версія — оновиться після цієї партії', 4);
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+setTimeout(checkUpdate, 1500);
+setInterval(checkUpdate, 3 * 60 * 1000);
+(() => {
+  const m = BUILD.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
+  if (!m) return;
+  const d = new Date(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]));
+  const two = n => String(n).padStart(2, '0');
+  $('ver').textContent = `Збірка ${two(d.getDate())}.${two(d.getMonth() + 1)} ${two(d.getHours())}:${two(d.getMinutes())}`;
+})();
 
 /* ================= boot ================= */
 if (window.ResizeObserver) new ResizeObserver(resize).observe(cv); else window.addEventListener('resize', resize);
