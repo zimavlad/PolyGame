@@ -9,8 +9,8 @@ const { G, store, $, showOverlay } = PG;
 // Arcade nodes rotate through the games in this order (missing modules are skipped).
 const ARC_ORDER = ['spike', 'stack', 'knife', 'zigzag', 'colorswitch', 'flappy', 'timber'];
 const HAND = [
-  { title: 'Перші лінії', moves: 10, goals: [{ t: 'lines', n: 2 }], seed: 'rows', tip: 'Перетягуй фігури на поле. Повний рядок або стовпець зникає.' },
-  { title: 'Квадрати 3×3', moves: 12, goals: [{ t: 'boxes', n: 2 }], seed: 'boxes', tip: 'Заповнений квадрат 3×3 теж зникає.' },
+  { title: 'Перші лінії', moves: 10, goals: [{ t: 'lines', n: 2 }], seed: 'rows', tray: [['XXX'], ['XXX'], ['XX', 'XX']], tip: 'Перетягуй фігури на поле. Повний рядок або стовпець зникає.' },
+  { title: 'Квадрати 3×3', moves: 12, goals: [{ t: 'boxes', n: 2 }], seed: 'boxes', tray: [['X', 'X', 'X'], ['X', 'X', 'X'], ['X']], tip: 'Заповнений квадрат 3×3 теж зникає.' },
   { title: 'Червоні точки', moves: 12, energy: 4, goals: [{ t: 'color', c: 0, n: 10 }], seed: 'pairs', tip: 'Веди пальцем по сусідніх точках одного кольору: вони лопаються за 1 ⚡.' },
   { kind: 'arcade', game: 'spike' },
   { title: 'Петля', moves: 14, energy: 3, goals: [{ t: 'loops', n: 1 }, { t: 'lines', n: 2 }], seed: 'square', tip: 'Замкни петлю з чотирьох точок одного кольору: зникне весь цей колір.' },
@@ -93,7 +93,7 @@ function startLevel(n) {
     return;
   }
   const lvl = { n, def, movesLeft: def.moves, goals: def.goals.map(g => Object.assign({}, g, { have: 0 })), intro: true, introAt: PG.now, done: false, revived: false, t0: Date.now() };
-  PG.newPuzzle({ mode: 'level', sudoku: def.sudoku, seed: def.seed, energy: def.energy + takeBonusEnergy(), lvl });
+  PG.newPuzzle({ mode: 'level', sudoku: def.sudoku, seed: def.seed, tray: def.tray, energy: def.energy + takeBonusEnergy(), lvl });
   PG.log('level_start', { n, kind: 'puzzle', sudoku: !!def.sudoku, moves: def.moves, goals: def.goals });
 }
 PG.hooks.levelWon = () => {
@@ -196,7 +196,7 @@ function openMap() {
     b.className = 'node' + (locked ? ' locked' : '') + (n === p.unlocked ? ' current' : '');
     const game = d.kind === 'arcade' ? PG.arcade.get(d.game) : null;
     const label = game ? game.title : kind === 'sudoku' ? 'Судоку' : 'Пазл';
-    b.innerHTML = `<span class="disc" style="--c:${game && game.accent ? game.accent : KIND_COLORS[kind]}">${locked ? '·' : n}</span><span class="kind">${label}</span><span class="st">${[1, 2, 3].map(i => i <= st ? '★' : '<span class="off">★</span>').join('')}</span>`;
+    b.innerHTML = `<span class="disc" style="--c:${game && game.accent ? game.accent : KIND_COLORS[kind]}">${n}</span><span class="kind">${label}</span><span class="st">${[1, 2, 3].map(i => i <= st ? '★' : '<span class="off">★</span>').join('')}</span>`;
     b.setAttribute('aria-label', `Рівень ${n}, ${label}${locked ? ', закрито' : `, зірок: ${st}`}`);
     if (!locked) b.addEventListener('click', () => { PG.sfx.pick(); startLevel(n); });
     else b.disabled = true;

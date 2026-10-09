@@ -75,7 +75,39 @@ line('"pieces do not fit" warnings', by('stuck').length);
 const popular = Object.entries(count(places, p => p.p)).sort((a, b) => b[1] - a[1]).slice(0, 5);
 line('most placed shapes', popular.map(([k, v]) => `${k}×${v}`).join(', '));
 
-head('Spike Rush');
+head('Level path');
+const lstart = by('level_start'), lend = by('level_end');
+line('levels started / finished', `${lstart.length} / ${lend.length}`);
+if (lend.length) {
+  const byN = {};
+  for (const e of lend) { const k = e.n; byN[k] = byN[k] || { tries: 0, won: 0, moves: [], reasons: {} }; byN[k].tries++; if (e.won) { byN[k].won++; byN[k].moves.push(e.movesLeft); } else byN[k].reasons[e.reason || '?'] = (byN[k].reasons[e.reason || '?'] || 0) + 1; }
+  for (const [n, v] of Object.entries(byN).sort((a, b) => a[0] - b[0])) {
+    line(`level ${n}`, `${v.won}/${v.tries} won · moves left avg ${v.moves.length ? r1(avg(v.moves)) : '-'} · fails ${JSON.stringify(v.reasons)}`);
+  }
+  line('revives used', by('level_revive').length);
+  line('furthest level reached', Math.max(0, ...lstart.map(e => e.n)));
+}
+
+head('Arcade games');
+const ae = by('arcade_end');
+const byGame = {};
+for (const e of ae) { byGame[e.id] = byGame[e.id] || []; byGame[e.id].push(e); }
+for (const [id, list] of Object.entries(byGame)) {
+  const won = list.filter(e => e.won).length;
+  line(id, `${won}/${list.length} won · max level ${Math.max(...list.map(e => e.level))} · progress ${r1(avg(list.map(e => e.progress / Math.max(1, e.goal))) * 100)}% of goal · ${r1(avg(list.map(e => e.sec)))} s · causes ${JSON.stringify(count(list.filter(e => !e.won), e => e.cause || '?'))}`);
+}
+if (!ae.length) console.log('  none');
+
+head('Ad mini-games');
+const shows = by('ad_show'), dones = by('ad_done'), closes = by('ad_close');
+line('shown / finished / closed', `${shows.length} / ${dones.length} / ${closes.length}`);
+const adBy = {};
+for (const e of dones) { adBy[e.id] = adBy[e.id] || { won: 0, n: 0 }; adBy[e.id].n++; if (e.won) adBy[e.id].won++; }
+for (const [id, v] of Object.entries(adBy)) line(id, `${v.won}/${v.n} won`);
+line('closed before finishing', closes.filter(e => !e.won).length);
+line('reasons', JSON.stringify(count(shows, e => e.reason)));
+
+head('Spike Rush (old builds)');
 const dt = by('dtts_end');
 if (dt.length) {
   line('rounds / won', `${dt.length} / ${dt.filter(d => d.won).length}`);
@@ -85,7 +117,7 @@ if (dt.length) {
   line('rounds dead in < 2 bounces', dt.filter(d => !d.won && d.touches < 2).length);
 }
 
-head('Stack');
+head('Stack (old builds)');
 const st = by('stack_end');
 if (st.length) {
   line('rounds / won', `${st.length} / ${st.filter(d => d.won).length}`);

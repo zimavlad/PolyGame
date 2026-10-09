@@ -113,7 +113,11 @@ function buzz(pattern) {
   const t = performance.now();
   if (typeof pattern === 'number' && t - lastHap < 40) return; // keep fast chains from turning into a drone
   lastHap = t;
-  if (HAS_VIBRATE) { try { navigator.vibrate(pattern); } catch (e) {} return; }
+  if (HAS_VIBRATE) {
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
+    try { navigator.vibrate(pattern); } catch (e) {}
+    return;
+  }
   iosTap();
   if (Array.isArray(pattern)) {
     let at = 0;
@@ -302,13 +306,43 @@ function countFits(p, cap) {
   return n;
 }
 const anyFit = p => countFits(p, 1) > 0;
-// Pick distinct digits for a sudoku piece so it has somewhere legal to go.
+// Digits that nearly-full rows, columns and boxes still need, weighted by how full the group is,
+// counted only where the digit could legally go. Pieces lean toward these so sudoku goals stay reachable.
+function neededDigits() {
+  const w = Array(10).fill(0);
+  const groups = [];
+  for (let i = 0; i < 9; i++) {
+    groups.push(Array.from({ length: 9 }, (_, k) => [i, k]), Array.from({ length: 9 }, (_, k) => [k, i]));
+    const br = Math.floor(i / 3) * 3, bc = (i % 3) * 3, box = [];
+    for (let r = br; r < br + 3; r++) for (let c = bc; c < bc + 3; c++) box.push([r, c]);
+    groups.push(box);
+  }
+  for (const g of groups) {
+    const filled = g.filter(([r, c]) => G.grid[r][c] >= 0).length;
+    if (filled < 5 || filled === 9) continue;
+    const empty = g.filter(([r, c]) => G.grid[r][c] < 0);
+    for (let d = 1; d <= 9; d++) if (empty.some(([r, c]) => !digitClash(r, c, d).length)) w[d] += filled * filled;
+  }
+  return w;
+}
+// Pick distinct digits for a sudoku piece so it has somewhere legal to go, leaning toward needed digits.
 function assignDigits(p) {
+  const need = neededDigits();
+  const draw = () => {
+    const pool = [1, 2, 3, 4, 5, 6, 7, 8, 9], out = [];
+    while (out.length < p.cells.length) {
+      const ws = pool.map(d => 1 + need[d]), sum = ws.reduce((a, b) => a + b, 0);
+      let t = Math.random() * sum, k = 0;
+      while (t > ws[k] && k < pool.length - 1) { t -= ws[k]; k++; }
+      out.push(pool.splice(k, 1)[0]);
+    }
+    return out;
+  };
   let bestD = null, bestN = -1;
   for (let t = 0; t < 40; t++) {
-    p.dig = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, p.cells.length);
-    const n = countFits(p, 6);
-    if (n > bestN) { bestN = n; bestD = p.dig; if (n >= 6) break; }
+    p.dig = t < 30 ? draw() : shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, p.cells.length);
+    const n = countFits(p, 4);
+    if (n > bestN) { bestN = n; bestD = p.dig; if (n >= 2) break; }
   }
   p.dig = bestD;
 }
@@ -440,6 +474,9 @@ function newPuzzle(opts) {
   if (opts.mode === 'endless') {
     G.tray = [pieceFrom(parseRows(['XXX']), randi(4)), pieceFrom(parseRows(['XX', 'XX']), randi(4)), makePiece()];
     pickNextRush();
+  } else if (opts.tray) {
+    // tutorial levels hand out pieces that fit the seeded board, so the goal reads from the first move
+    G.tray = opts.tray.map(rows => { const p = pieceFrom(parseRows(rows), randi(4)); if (G.sudoku) assignDigits(p); return p; });
   } else refillTray();
   G.gameNo = (Number(store.get('polygame.games', 0)) || 0) + 1; G.gameT0 = Date.now();
   store.set('polygame.games', G.gameNo);
@@ -1551,6 +1588,7 @@ function boot() {
   if (window.ResizeObserver) new ResizeObserver(resize).observe(cv); else window.addEventListener('resize', resize);
   resize();
   newPuzzle({ mode: 'endless', seed: 'endless' }); G.state = 'menu';
+  G.lastAdAt = Date.now() - 60000; // the first "ad" can come after about 90 s of play
   LOG.ev('start', {
     build: BUILD, ua: navigator.userAgent, lang: navigator.language,
     tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ''; } })(),
@@ -1566,5 +1604,5 @@ function boot() {
 document.addEventListener('DOMContentLoaded', boot);
 
 // handle for automated checks
-window.__poly = { G, L, AR, AD, startArcade, showAd, placePiece, checkStuck, get drag() { return drag; }, get chain() { return chain; } };
+window.__poly = { G, L, AR, AD, startArcade, showAd, placePiece, checkStuck, canPlace, findClears, cellCenter, get drag() { return drag; }, get chain() { return chain; } };
 })();
