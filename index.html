@@ -2,7 +2,24 @@
 <html lang="uk">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- standalone:start -->
+<meta name="description" content="Block Blast, Sudoku, Two Dots, Don't Touch the Spikes і Stack в одній грі.">
+<meta name="theme-color" content="#E7ECF3">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PolyGame">
+<meta property="og:type" content="website">
+<meta property="og:title" content="PolyGame">
+<meta property="og:description" content="П'ять хітів в одній грі: Block Blast, Sudoku, Two Dots, Don't Touch the Spikes і Stack.">
+<meta property="og:image" content="https://zimavlad.github.io/PolyGame/icons/og.png">
+<meta property="og:url" content="https://zimavlad.github.io/PolyGame/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<!-- standalone:end -->
 <title>PolyGame</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,13 +41,14 @@
   --font-body:"Nunito","Arial Rounded MT Bold","Segoe UI",sans-serif;
   color-scheme:light;
 }
-html,body{height:100%;margin:0}
+html{height:100%;box-sizing:border-box;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);overscroll-behavior:none}
+body{height:100%;margin:0;overscroll-behavior:none;-webkit-touch-callout:none;-webkit-text-size-adjust:100%}
 body{background:var(--field);color:var(--ink);font-family:var(--font-body);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 [hidden]{display:none!important}
 #app{position:relative;width:100%;height:100%;overflow:hidden}
 #game{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
-.overlay{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;padding-inline:16px;padding-block:16px;background:rgba(231,236,243,.84);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-.card{background:var(--card);border-radius:28px;width:100%;max-width:400px;max-height:100%;overflow:auto;padding:26px 22px 22px;box-sizing:border-box;box-shadow:0 20px 60px rgba(39,48,63,.18);text-align:center}
+.overlay{position:absolute;inset:0;z-index:2;touch-action:manipulation;display:flex;align-items:center;justify-content:center;padding-inline:16px;padding-block:16px;background:rgba(231,236,243,.84);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.card{background:var(--card);border-radius:28px;width:100%;max-width:400px;max-height:100%;overflow:auto;overscroll-behavior:contain;padding:26px 22px 22px;box-sizing:border-box;box-shadow:0 20px 60px rgba(39,48,63,.18);text-align:center}
 .dots{display:flex;gap:8px;justify-content:center;margin-bottom:14px}
 .dots i{display:block;width:14px;height:14px;border-radius:50%;background:var(--c);animation:bob 1.6s ease-in-out infinite}
 .dots i:nth-child(2){animation-delay:.12s}
@@ -125,12 +143,22 @@ const store = {
 };
 let best = Number(store.get('polygame.best', 0)) || 0;
 let muted = !!store.get('polygame.muted', false);
+let haptics = store.get('polygame.haptics', true) !== false;
 
 /* ================= audio ================= */
-let AC = null;
+let AC = null, MASTER = null;
 function audioInit() {
   try {
-    if (!AC) { const A = window.AudioContext || window.webkitAudioContext; if (A) AC = new A(); }
+    if (!AC) {
+      const A = window.AudioContext || window.webkitAudioContext;
+      if (A) {
+        AC = new A();
+        // everything goes through a gentle low-pass so nothing sounds harsh on phone speakers
+        const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200; lp.Q.value = 0.3;
+        MASTER = AC.createGain(); MASTER.gain.value = 0.85;
+        MASTER.connect(lp); lp.connect(AC.destination);
+      }
+    }
     if (AC && AC.state === 'suspended') AC.resume();
   } catch (e) {}
 }
@@ -141,9 +169,9 @@ function tone(f, d = 0.12, type = 'sine', v = 0.12, delay = 0, slide = 0) {
     o.type = type; o.frequency.setValueAtTime(f, t);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t + d);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(v, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(v, t + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d + 0.03);
+    o.connect(g); g.connect(MASTER || AC.destination); o.start(t); o.stop(t + d + 0.03);
   } catch (e) {}
 }
 const NOTES = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760, 2093];
@@ -151,21 +179,46 @@ const semi = (base, s) => base * Math.pow(2, s / 12);
 const sfx = {
   pick() { tone(420, .06, 'triangle', .08); },
   place() { tone(260, .08, 'triangle', .14); tone(390, .07, 'sine', .06, .02); },
-  bad() { tone(150, .12, 'square', .05); },
+  bad() { tone(196, .14, 'triangle', .06, 0, .8); },
+  back() { tone(330, .09, 'sine', .05, 0, .7); },
   clear(k) { [0, 4, 7, 12].forEach((s, i) => tone(semi(523.25, s + (k - 1) * 2), .22, 'triangle', .1, i * .05)); },
   chain(i) { tone(NOTES[clamp(i, 0, NOTES.length - 1)], .14, 'sine', .12); },
   pop() { tone(700, .12, 'triangle', .1, 0, .5); },
   loop() { [0, 4, 7, 11, 14].forEach((s, i) => tone(semi(392, s), .3, 'sine', .1, i * .06)); },
   flap() { tone(520, .07, 'sine', .07, 0, 1.6); },
-  wall() { tone(880, .06, 'square', .04); },
+  wall() { tone(660, .07, 'sine', .07); },
   candy() { tone(1046.5, .1, 'sine', .1); tone(1567.98, .12, 'sine', .08, .06); },
-  die() { tone(220, .35, 'sawtooth', .08, 0, .3); },
+  die() { tone(330, .45, 'triangle', .1, 0, .35); },
   stack(i) { tone(NOTES[clamp(i, 0, NOTES.length - 1)] / 2, .16, 'triangle', .12); },
   cut() { tone(300, .1, 'triangle', .1, 0, .7); },
-  rush() { [0, 3, 7, 10, 12].forEach((s, i) => tone(semi(330, s), .18, 'square', .05, i * .07)); },
+  rush() { [0, 3, 7, 10, 12].forEach((s, i) => tone(semi(330, s), .2, 'triangle', .08, i * .07)); },
   over() { [7, 4, 0, -5].forEach((s, i) => tone(semi(392, s), .3, 'triangle', .1, i * .14)); }
 };
-function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+// Soft haptics: short pulses on Android (navigator.vibrate); on iOS 18+ Safari the native
+// switch control gives a light system tap, which is the only haptic the web can reach there.
+const HAS_VIBRATE = typeof navigator.vibrate === 'function';
+const HAP = { tick: 5, light: 9, soft: 13, double: [8, 45, 10], success: [9, 40, 9, 40, 14], thud: [16, 60, 10] };
+let lastHap = 0;
+function iosTap() {
+  try {
+    const l = document.createElement('label'), i = document.createElement('input');
+    l.setAttribute('aria-hidden', 'true'); l.style.display = 'none';
+    i.type = 'checkbox'; i.setAttribute('switch', '');
+    l.appendChild(i); document.head.appendChild(l); l.click(); l.remove();
+  } catch (e) {}
+}
+function buzz(pattern) {
+  if (!haptics) return;
+  const t = performance.now();
+  if (typeof pattern === 'number' && t - lastHap < 40) return; // keep fast chains from turning into a drone
+  lastHap = t;
+  if (HAS_VIBRATE) { try { navigator.vibrate(pattern); } catch (e) {} return; }
+  iosTap();
+  if (Array.isArray(pattern)) {
+    let at = 0;
+    for (let i = 1; i + 1 < pattern.length; i += 2) { at += pattern[i - 1] + pattern[i]; setTimeout(iosTap, at); }
+  }
+}
 
 /* ================= pieces (Block Blast) ================= */
 function parseRows(rows) {
@@ -214,7 +267,7 @@ function toast(t, d = 2.5) { G.toast = { text: t, until: now + d }; }
 function gainEnergy(n) { const b = G.energy; G.energy = Math.min(MAX_E, G.energy + n); if (G.energy > b) G.ePulse = now; return G.energy - b; }
 
 /* ================= layout ================= */
-const L = { board: {}, tray: {}, arena: {}, sound: {}, hudY: 0, hudH: 100, trayCell: 20 };
+const L = { board: {}, tray: {}, arena: {}, sound: {}, vibe: {}, hudY: 0, hudH: 100, trayCell: 20 };
 let W = 1, H = 1, DPR = 1;
 function resize() {
   const r = cv.getBoundingClientRect();
@@ -231,15 +284,17 @@ function layout() {
   let B = Math.min(gw, avail / 1.40);
   const cell = Math.max(8, Math.floor(B / 9)); B = cell * 9;
   const extra = Math.max(0, avail - B * 1.40);
-  const off = Math.round(extra * 0.42);
+  const off = Math.round(extra * 0.34);
   const bx = Math.round((W - B) / 2), by = Math.round(off + hudH);
   L.hudY = off; L.hudH = hudH;
   L.board = { x: bx, y: by, s: B, cell };
-  const ty = by + B + Math.round(cell * 0.5), th = Math.round(B * 0.40 - cell * 0.5);
+  // on tall phones the spare height goes to the tray, so pieces sit nearer the thumb
+  const ty = by + B + Math.round(cell * 0.5), th = Math.round(B * 0.40 - cell * 0.5 + extra * 0.4);
   L.tray = { x: bx, y: ty, w: B, h: th };
-  L.trayCell = Math.min(cell * 0.6, (B / 3) * 0.84 / 5, th * 0.88 / 5);
+  L.trayCell = Math.min(cell * 0.6, (B / 3) * 0.84 / 5, (B * 0.40 - cell * 0.5) * 0.88 / 5);
   L.arena = { x: bx - 8, y: by - 8, w: B + 16, h: ty + th - by + 16 };
   L.sound = { x: bx - 2, y: off + 6, w: 30, h: 30 };
+  L.vibe = { x: bx + 34, y: off + 6, w: 30, h: 30 };
 }
 
 /* ================= board logic (Sudoku + Block Blast) ================= */
@@ -294,7 +349,7 @@ function boardCellAt(x, y) {
 }
 function traySlotAt(x, y) {
   const t = L.tray;
-  if (y < t.y - 8 || y > t.y + t.h + 16 || x < t.x - 8 || x > t.x + t.w + 8) return -1;
+  if (y < t.y - 8 || y > t.y + t.h + 40 || x < t.x - 16 || x > t.x + t.w + 16) return -1;
   return clamp(Math.floor((x - t.x) / (t.w / 3)), 0, 2);
 }
 
@@ -346,7 +401,7 @@ function placePiece(slot, r0, c0) {
   G.tray[slot] = null;
   for (const [dr, dc] of p.cells) { G.grid[r0 + dr][c0 + dc] = p.color; G.born[r0 + dr][c0 + dc] = now; }
   G.score += p.cells.length; G.placements++;
-  sfx.place(); buzz(8);
+  sfx.place(); buzz(HAP.light);
   const groups = findClears(G.grid);
   if (groups.length) resolveClears(groups); else G.streak = 0;
   if (G.tray.every(t => !t)) refillTray();
@@ -387,7 +442,7 @@ function resolveClears(groups) {
   if (k > 1) addText(sx, sy - 38 * line++, k === 2 ? 'ДУБЛЬ!' : k === 3 ? 'ТРИПЛ!' : 'МЕГА!', PAL[3], 26, 1.2, 0.05);
   if (streak > 1) addText(sx, sy - 38 * line++, 'КОМБО ×' + Math.min(streak, 6), PAL[1], 24, 1.2, 0.1);
   if (mono) addText(sx, sy - 38 * line++, 'МОНО! +⚡', PAL[monoColor], 24, 1.3, 0.15);
-  sfx.clear(k); buzz(20);
+  sfx.clear(k); buzz(k > 1 || mono || streak > 1 ? HAP.success : HAP.double);
   if (!REDUCED) G.shake = Math.min(12, 3 + k * 3);
 }
 
@@ -399,7 +454,7 @@ function checkStuck() {
   if (G.energy > 0 && hasPair()) { toast('Фігури не влазять — лопни точки за ⚡', 5); return; }
   G.busyUntil = now + 99;
   toast('Ходів більше немає', 3);
-  sfx.over();
+  sfx.over(); buzz(HAP.thud);
   after(1.1, gameOver);
 }
 function gameOver() {
@@ -418,10 +473,15 @@ function gameOver() {
 function updateDrag(x, y) {
   drag.x = x; drag.y = y;
   const c = L.board.cell, p = drag.piece;
+  drag.lift = drag.touch ? p.h * c / 2 + c * 1.1 : 0; // keep the whole piece clear of the thumb
   const px = x - p.w * c / 2, py = y - drag.lift - p.h * c / 2;
   const col = Math.round((px - L.board.x) / c), row = Math.round((py - L.board.y) / c);
   if (canPlace(p, row, col)) {
-    if (!drag.snap || drag.snap.r !== row || drag.snap.c !== col) { drag.snap = { r: row, c: col }; drag.clears = previewClears(p, row, col); }
+    if (!drag.snap || drag.snap.r !== row || drag.snap.c !== col) {
+      const had = !!drag.clears;
+      drag.snap = { r: row, c: col }; drag.clears = previewClears(p, row, col);
+      if (drag.clears && !had) buzz(HAP.tick);
+    }
   } else { drag.snap = null; drag.clears = null; }
 }
 
@@ -443,8 +503,8 @@ function chainVisit(x, y) {
   if (prev && prev[0] === r && prev[1] === c) { cells.pop(); chain.loop = false; sfx.chain(cells.length - 1); return; }
   if (chain.loop) return;
   if (G.grid[r][c] !== chain.color) return;
-  if (cells.some(q => q[0] === r && q[1] === c)) { cells.push([r, c]); chain.loop = true; sfx.chain(cells.length + 2); buzz(15); return; }
-  cells.push([r, c]); sfx.chain(cells.length - 1); buzz(5);
+  if (cells.some(q => q[0] === r && q[1] === c)) { cells.push([r, c]); chain.loop = true; sfx.chain(cells.length + 2); buzz(HAP.double); return; }
+  cells.push([r, c]); sfx.chain(cells.length - 1); buzz(HAP.tick);
 }
 function endChain() {
   const ch = chain; chain = null;
@@ -457,9 +517,9 @@ function endChain() {
   if (ch.loop) {
     targets = [];
     for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) if (G.grid[r][c] === ch.color) targets.push([r, c]);
-    G.stats.loops++; sfx.loop(); buzz(30);
+    G.stats.loops++; sfx.loop(); buzz(HAP.success);
     if (!REDUCED) G.shake = 7;
-  } else sfx.pop();
+  } else { sfx.pop(); buzz(HAP.soft); }
   const pts = targets.length * (ch.loop ? 15 : 10);
   G.score += pts;
   let sx = 0, sy = 0;
@@ -484,6 +544,7 @@ function startRush() {
 function startArcade(mode) {
   G.state = 'arcade'; G.arcade = mode; G.lastArcade = mode; G.stats.rushes++;
   drag = null; chain = null;
+  buzz(HAP.double);
   if (mode === 'dtts') dStart(); else sStart();
 }
 function endRush() {
@@ -496,8 +557,8 @@ function arcadeTap() {
     else if (D.sub === 'fly') dFlap();
     else if (D.sub === 'result' && now - D.resultAt > 0.6) endRush();
   } else if (G.arcade === 'stack') {
-    if (S.sub === 'ready') { S.sub = 'play'; sfx.pick(); }
-    else if (S.sub === 'play') sDrop();
+    if (S.sub === 'ready') { S.sub = 'play'; sfx.pick(); buzz(HAP.tick); }
+    else if (S.sub === 'play') { buzz(HAP.tick); sDrop(); }
     else if (S.sub === 'result' && now - S.resultAt > 0.6) endRush();
   }
 }
@@ -564,7 +625,7 @@ function dHit(px, py, r) {
 function dTouch(side) {
   const { A } = dGeo();
   D.touches++; D.reward += 10; G.score += 10;
-  sfx.wall(); buzz(6);
+  sfx.wall(); buzz(HAP.tick);
   burst(side === 'R' ? A.x + A.w : A.x, A.y + D.ny * A.h, '#FFFFFF', 6, 120);
   if (D.touches >= DTTS_GOAL) {
     D.sub = 'win'; D.won = true; D.endAt = now + 0.9; D.reward += 100; G.score += 100; sfx.loop();
@@ -577,7 +638,7 @@ function dTouch(side) {
 function dDie() {
   const { A, r } = dGeo();
   D.sub = 'dead'; D.endAt = now + 0.9; D.vy = -0.5;
-  sfx.die(); buzz(40);
+  sfx.die(); buzz(HAP.thud);
   if (!REDUCED) G.shake = 8;
   burst(A.x + D.nx * A.w, A.y + D.ny * A.h, PAL[0], 14, 200);
 }
@@ -597,7 +658,7 @@ function dUpdate(dt) {
       const cx = A.x + D.candy.nx * A.w, cy = top + (D.candy.slot + 0.5) * slotH;
       if (Math.hypot(px - cx, py - cy) < r * 1.7) {
         D.candies++; D.eGain += gainEnergy(1); D.reward += 25; G.score += 25;
-        sfx.candy(); buzz(10);
+        sfx.candy(); buzz(HAP.double);
         burst(cx, cy, PAL[D.candy.color], 12, 160);
         D.candy = null;
       }
@@ -693,21 +754,21 @@ function sDrop() {
     if (S.streak >= 3 && nb.w < 0.56) { const g = Math.min(0.03, 0.56 - nb.w); nb.w += g; nb.x = clamp(nb.x - g / 2, 0, 1 - nb.w); }
     S.blocks.push(nb);
     S.eGain += gainEnergy(1);
-    sfx.stack(S.streak + 1); buzz(12);
+    sfx.stack(S.streak + 1); buzz(HAP.double);
     texts.push({ x: A.x + (nb.x + nb.w / 2) * A.w, y: baseTop - layer * lh - 26, text: S.streak >= 3 ? 'ІДЕАЛЬНО ×' + S.streak : 'ІДЕАЛЬНО! +⚡', color: PAL[1], size: 20, t0: now, dur: 0.9 });
   } else {
     const l = Math.max(c.x, top.x), rr = Math.min(c.x + c.w, top.x + top.w), ov = rr - l;
     if (ov <= 0) {
       S.debris.push({ x: c.x, w: c.w, layer, dy: 0, vy: 0, rot: 0, vr: (Math.random() - 0.5) * 3 });
       S.cur = null; S.sub = 'over'; S.endAt = now + 0.9;
-      sfx.die(); buzz(40);
+      sfx.die(); buzz(HAP.thud);
       if (!REDUCED) G.shake = 6;
       return;
     }
     S.blocks.push({ x: l, w: ov });
     if (delta > 0) S.debris.push({ x: rr, w: c.x + c.w - rr, layer, dy: 0, vy: 0, rot: 0, vr: 2 + Math.random() * 2 });
     else S.debris.push({ x: c.x, w: l - c.x, layer, dy: 0, vy: 0, rot: 0, vr: -2 - Math.random() * 2 });
-    S.streak = 0; sfx.cut(); buzz(8);
+    S.streak = 0; sfx.cut(); buzz(HAP.light);
   }
   S.level++; S.reward += 10; G.score += 10;
   if (S.level >= STACK_GOAL) {
@@ -827,6 +888,17 @@ function drawPanel(title, color, rows, at) {
   if (now - at > 0.6) txt('Тапни, щоб повернутись', 0, h / 2 - 26, 13, rgba(color, 0.65 + 0.35 * Math.sin(now * 6)), { font: FB, weight: 900 });
   ctx.restore();
 }
+function drawVibe(x, y, on) {
+  ctx.strokeStyle = SOFT; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  rrect(x - 4.5, y - 8, 9, 16, 2.5); ctx.stroke();
+  if (on) {
+    for (const sd of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(x + sd * 8, y - 4); ctx.lineTo(x + sd * 10, y - 1.5); ctx.lineTo(x + sd * 8, y + 1); ctx.lineTo(x + sd * 10, y + 3.5); ctx.stroke();
+    }
+  } else {
+    ctx.beginPath(); ctx.moveTo(x - 9, y - 9); ctx.lineTo(x + 9, y + 9); ctx.stroke();
+  }
+}
 function drawSpeaker(x, y, on) {
   ctx.fillStyle = SOFT; ctx.strokeStyle = SOFT; ctx.lineWidth = 2; ctx.lineCap = 'round';
   ctx.beginPath();
@@ -892,14 +964,20 @@ function drawTray() {
     const k = clamp((now - p.born) / 0.35, 0, 1);
     if (k <= 0) continue;
     const s = easeOutBack(k), fits = anyFit(p);
-    ctx.save(); ctx.translate(t.x + sw * (i + 0.5), t.y + t.h / 2); ctx.scale(s, s);
-    drawPiece(p, -p.w * cs / 2, -p.h * cs / 2, cs, fits ? 1 : 0.28);
+    let cx = t.x + sw * (i + 0.5), cy = t.y + t.h / 2, pcs = cs;
+    if (p.ret && now - p.ret.t0 < 0.22) { // fly back after a drop that did not fit
+      const q = easeOutCubic((now - p.ret.t0) / 0.22);
+      cx = lerp(p.ret.x, cx, q); cy = lerp(p.ret.y, cy, q); pcs = lerp(p.ret.cs, cs, q);
+    }
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(s, s);
+    drawPiece(p, -p.w * pcs / 2, -p.h * pcs / 2, pcs, fits ? 1 : 0.28);
     ctx.restore();
   }
 }
 function drawDrag() {
-  const p = drag.piece, cs = L.board.cell;
-  const ox = drag.x - p.w * cs / 2, oy = drag.y - drag.lift - p.h * cs / 2;
+  const p = drag.piece, k = easeOutCubic(clamp((now - drag.t0) / 0.14, 0, 1));
+  const cs = lerp(L.trayCell, L.board.cell, k), lift = drag.lift * k; // grow out of the tray and rise
+  const ox = drag.x - p.w * cs / 2, oy = drag.y - lift - p.h * cs / 2;
   ctx.save(); ctx.shadowColor = 'rgba(39,48,63,0.22)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 8;
   drawPiece(p, ox, oy, cs, 1);
   ctx.restore();
@@ -958,6 +1036,7 @@ function drawHUD() {
   const b = L.board, y0 = L.hudY, hh = L.hudH, rowY = y0 + hh * 0.5;
   const sb = L.sound;
   drawSpeaker(sb.x + sb.w / 2, sb.y + sb.h / 2, !muted);
+  const vb = L.vibe; drawVibe(vb.x + vb.w / 2, vb.y + vb.h / 2, haptics);
   try { ctx.letterSpacing = '1px'; } catch (e) {}
   txt('РЕКОРД ' + Math.max(best, G.score), b.x + b.s, sb.y + sb.h / 2, 12, SOFT, { font: FB, weight: 900, align: 'right' });
   try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -1033,17 +1112,17 @@ function pt(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r
 cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   audioInit();
-  const { x, y } = pt(e), sb = L.sound;
-  if (x >= sb.x - 6 && x <= sb.x + sb.w + 6 && y >= sb.y - 6 && y <= sb.y + sb.h + 6) {
-    muted = !muted; store.set('polygame.muted', muted); if (!muted) sfx.pick(); return;
-  }
+  const { x, y } = pt(e), sb = L.sound, vb = L.vibe;
+  const near = (r) => x >= r.x - 7 && x <= r.x + r.w + 7 && y >= r.y - 7 && y <= r.y + r.h + 7;
+  if (near(sb)) { muted = !muted; store.set('polygame.muted', muted); if (!muted) sfx.pick(); return; }
+  if (near(vb)) { haptics = !haptics; store.set('polygame.haptics', haptics); if (haptics) buzz(HAP.double); return; }
   if (G.state === 'arcade') { arcadeTap(); return; }
   if (G.state !== 'puzzle' || now < G.busyUntil || activeId !== null) return;
   const slot = traySlotAt(x, y);
   if (slot >= 0 && G.tray[slot]) {
     activeId = e.pointerId; try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-    drag = { slot, piece: G.tray[slot], x, y, lift: e.pointerType === 'mouse' ? 0 : L.board.cell * 1.5, snap: null, clears: null };
-    updateDrag(x, y); sfx.pick();
+    drag = { slot, piece: G.tray[slot], x, y, touch: e.pointerType !== 'mouse', lift: 0, t0: now, snap: null, clears: null };
+    updateDrag(x, y); sfx.pick(); buzz(HAP.tick);
     return;
   }
   const cell = boardCellAt(x, y);
@@ -1061,7 +1140,11 @@ cv.addEventListener('pointermove', e => {
 function release(e, cancel) {
   if (e.pointerId !== activeId) return;
   activeId = null;
-  if (drag) { const d = drag; drag = null; if (!cancel && d.snap && G.state === 'puzzle') placePiece(d.slot, d.snap.r, d.snap.c); }
+  if (drag) {
+    const d = drag; drag = null;
+    if (!cancel && d.snap && G.state === 'puzzle') placePiece(d.slot, d.snap.r, d.snap.c);
+    else { d.piece.ret = { x: d.x, y: d.y - d.lift, cs: L.board.cell, t0: now }; if (!cancel) sfx.back(); }
+  }
   else if (chain) { if (cancel) chain = null; else endChain(); }
 }
 cv.addEventListener('pointerup', e => release(e, false));
@@ -1077,7 +1160,15 @@ window.addEventListener('keydown', e => {
   }
 });
 
-$('play').addEventListener('click', () => { audioInit(); $('menu').hidden = true; newGame(); });
+// iOS only unlocks Web Audio inside touchend/click, so listen for those too.
+['touchend', 'click', 'keydown'].forEach(ev => window.addEventListener(ev, audioInit, { passive: true }));
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return;
+  try { if (AC) AC.suspend(); } catch (e) {}
+  if (G.state === 'arcade' && G.arcade === 'dtts' && D.sub === 'fly') { D.sub = 'ready'; D.vy = 0; } // wait for a tap on return
+  if (activeId !== null) { activeId = null; drag = null; chain = null; }
+});
+$('play').addEventListener('click', () => { audioInit(); $('menu').hidden = true; newGame(); buzz(HAP.light); });
 $('again').addEventListener('click', () => { audioInit(); $('over').hidden = true; newGame(); });
 
 /* ================= boot ================= */
