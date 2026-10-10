@@ -9,12 +9,12 @@ const { G, store, $, showOverlay } = PG;
 // Arcade nodes rotate through the games in this order (missing modules are skipped).
 const ARC_ORDER = ['spike', 'stack', 'knife', 'zigzag', 'colorswitch', 'flappy', 'timber'];
 const HAND = [
-  { title: 'Перші лінії', moves: 10, goals: [{ t: 'lines', n: 2 }], seed: 'rows', tray: [['XXX'], ['XXX'], ['XX', 'XX']], tip: 'Перетягуй фігури на поле. Повний рядок або стовпець зникає.' },
+  { title: 'Перші лінії', moves: 10, goals: [{ t: 'lines', n: 2 }], seed: 'rows', tray: [['XXX'], ['XXX'], ['XX', 'XX']], tip: 'Перетягуй фігури на поле. Заповни 2 рядки або стовпці — вони зникнуть.' },
   { title: 'Квадрати 3×3', moves: 12, goals: [{ t: 'boxes', n: 2 }], seed: 'boxes', tray: [['X', 'X', 'X'], ['X', 'X', 'X'], ['X']], tip: 'Заповнений квадрат 3×3 теж зникає.' },
   { title: 'Червоні точки', moves: 12, energy: 4, goals: [{ t: 'color', c: 0, n: 10 }], seed: 'pairs', tip: 'Веди пальцем по сусідніх точках одного кольору: вони лопаються за 1 ⚡.' },
   { kind: 'arcade', game: 'spike' },
-  { title: 'Петля', moves: 14, energy: 3, goals: [{ t: 'loops', n: 1 }, { t: 'lines', n: 2 }], seed: 'square', tip: 'Замкни петлю з чотирьох точок одного кольору: зникне весь цей колір.' },
-  { title: 'Перше судоку', sudoku: true, moves: 14, goals: [{ t: 'boxes', n: 1 }], seed: 'sudoku:b1', tip: 'Цифра не повторюється в рядку, стовпці й квадраті 3×3. Повний квадрат — розв’язане судоку.' },
+  { title: 'Петля', moves: 14, energy: 3, goals: [{ t: 'loops', n: 1 }, { t: 'lines', n: 2 }], seed: 'square', tip: 'Замкни петлю з чотирьох точок одного кольору — зникне весь цей колір. Потім заповни 2 рядки або стовпці.' },
+  { title: 'Перше судоку', sudoku: true, moves: 14, goals: [{ t: 'boxes', n: 1 }], seed: 'sudoku:b1', tip: 'На кожній кульці є цифра. Став фігури так, щоб цифри не повторювались у рядку, стовпці й квадраті 3×3. Заповни один квадрат 3×3 до кінця.' },
   { title: 'Два кольори', moves: 18, energy: 4, goals: [{ t: 'color', c: 1, n: 10 }, { t: 'color', c: 2, n: 10 }], seed: 'random' },
   { kind: 'arcade', game: 'stack' },
   { title: 'Судоку-лінії', sudoku: true, moves: 18, goals: [{ t: 'lines', n: 2 }], seed: 'sudoku:r2', tip: 'Добудуй рядки: у повному рядку судоку є всі цифри 1–9.' },
@@ -89,7 +89,8 @@ function startLevel(n) {
     PG.log('level_start', { n, kind: 'arcade', game: def.game });
     PG.startArcade(def.game, { from: 'level', onDone: res => {
       if (res.missing || res.broken) { finishLevel(n, true, 1, { arcade: true, skipped: true }); return; }
-      finishLevel(n, res.won, res.won ? 3 : 0, { arcade: true, reason: 'arcade' });
+      if (res.eGain) store.set('polygame.bonusE', (Number(store.get('polygame.bonusE', 0)) || 0) + res.eGain);
+      finishLevel(n, res.won, res.won ? 3 : 0, { arcade: true, reason: 'arcade', goal: res.goal });
     } });
     return;
   }
@@ -130,7 +131,7 @@ function showLevelEnd(n, won, stars, info) {
   $('leStars').hidden = !won;
   $('leTitle').textContent = won ? (stars === 3 ? 'Ідеально!' : 'Пройдено!') : info.reason === 'moves' ? 'Ходи скінчились' : info.reason === 'stuck' ? 'Фігури не влазять' : 'Майже вийшло';
   if (won) $('leInfo').textContent = info.arcade ? 'Аркадний рівень пройдено' : `Очки: ${G.score}${info.bonus ? ` · за ходи, що лишились: +${info.bonus}` : ''}`;
-  else if (info.arcade) $('leInfo').textContent = 'Спробуй ще раз — гра запам’ятовує твій рівень.';
+  else if (info.arcade) $('leInfo').textContent = info.goal ? `Ціль: ${info.goal.count} ${info.goal.unit}. Спробуй ще раз!` : 'Спробуй ще раз!';
   else $('leInfo').textContent = 'Зроблено: ' + lv.goals.map(g => goalText(g, g.t === 'score' ? G.score : g.have)).join(' · ');
   $('leNext').hidden = !won;
   $('leRevive').hidden = won || info.arcade || !lv || lv.revived || !PG.ads.size();
@@ -146,7 +147,7 @@ $('leNext').addEventListener('click', () => {
   if (n % 2 === 0 && PG.ads.size()) {
     showOverlay(null); G.state = 'map';
     G.boardVisible = false;
-    const shown = PG.showAd(null, { reason: 'break', reward: { label: '+2 ⚡ на наступний рівень', fn: () => store.set('polygame.bonusE', 2) }, onDone: () => openMap() });
+    const shown = PG.showAd(null, { reason: 'break', reward: { label: '+2 ⚡ на наступний рівень', fn: () => store.set('polygame.bonusE', (Number(store.get('polygame.bonusE', 0)) || 0) + 2) }, onDone: () => openMap() });
     if (shown) return;
   }
   openMap();
@@ -296,5 +297,6 @@ PG.hooks.boot = () => {
   if (q.has('endless')) { startEndless(); return; }
   showOverlay('menu');
 };
+PG.hooks.goalText = g => goalText(g);
 PG.levels = { levelDef, startLevel, openMap, openLibrary, goMenu };
 })();

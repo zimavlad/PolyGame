@@ -87,7 +87,7 @@
     for (let i = 0; i < 16; i++) { const m = (lo + hi) / 2; if (wetArea(w, H, m) > vol) lo = m; else hi = m; }
     return (lo + hi) / 2;
   }
-  // Rising pop-up text (PG.floatText is drawn under the ad frame, so mini-games draw their own).
+  // Rising pop-up text drawn by the game itself, so it stays clipped to the play rect and shakes with it.
   function popText(ctx, x, y, text, color, size, k) {
     const s = easeOutBack(clamp(k * 4, 0, 1)), a = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
     ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y - k * 34); ctx.scale(s, s);
@@ -120,7 +120,7 @@
       const lift = new Array(n).fill(0), wig = new Array(n).fill(-9), doneAt = new Array(n).fill(-9);
       let sel = -1, anim = null, t = 0, state = 'play', endAt = 0, stateAt = 0, pours = 0;
       const pops = []; // { i: tube index or -1 for the whole row, text, color, size, t0 }
-      const inst = { over: null, hint: 'Тапни пробірку, а потім ту, куди переливати', tubes, best: puzzle.best };
+      const inst = { over: null, hint: 'Тапни пробірку, потім ту, куди лити', tubes, best: puzzle.best };
       const G = { tw: 30, uh: 30, H: 150, top: 0, slot: 50, x0: 0 };
 
       // Tube size and row placement from the play rect (also read by automated checks).

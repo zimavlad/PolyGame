@@ -345,8 +345,8 @@
         const U = V.U, y = sy(-BR);
         if (y > A.y + A.h + 10) return;
         ctx.fillStyle = 'rgba(39,48,63,0.16)'; rrect(V.X - 0.12 * U, y + 2, 0.24 * U, Math.max(6, 0.026 * U), 6); ctx.fill();
-        if (lv <= 2 && inst.progress === 0 && !inst.over) { // first rounds: the one rule, under the start pad
-          const ty = y + 0.026 * U + 26;
+        const ty = y + 0.026 * U + 26;
+        if (lv <= 2 && inst.progress === 0 && !inst.over && ty + 10 < A.y + A.h - 20) { // first rounds: the one rule, under the start pad (skipped if it would hit the progress bar)
           ctx.font = `900 14px ${FB}`;
           const tw = ctx.measureText('Тільки крізь свій колір').width;
           dot(V.X - tw / 2 - 6, ty, 7, PAL[b.col]);

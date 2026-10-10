@@ -924,7 +924,7 @@ function arcadeTap(x, y) {
   if (AR.sub === 'result' && now - AR.resultAt > 0.6) endArcade();
 }
 function endArcade() {
-  const res = { won: AR.won, id: AR.def.id, level: AR.level };
+  const res = { won: AR.won, id: AR.def.id, level: AR.level, goal: AR.goal, eGain: AR.eGain };
   const done = AR.onDone, from = AR.from;
   AR.def = null; AR.inst = null;
   if (from === 'rush') {
@@ -985,10 +985,12 @@ function drawArcade() {
   }
   if (AR.sub === 'result') {
     const g = AR.goal, prog = Math.min(AR.inst.progress, g.count);
-    drawPanel(AR.won ? `Рівень ${AR.level} пройдено!` : 'Майже вийшло', d.accent || PAL[3], [
-      [cap(g.unit), `${prog}/${g.count}`], ['Енергія', `+${AR.eGain} ⚡`], ['Очки', `+${AR.sGain}`],
-      [AR.won ? 'Далі' : 'Спроба', AR.won ? `рівень ${AR.level + 1}` : `рівень ${AR.level}`]
-    ], AR.resultAt, AR.from === 'rush' ? 'Тапни, щоб повернутись' : 'Тапни, щоб продовжити');
+    // on the level path the HUD already names the path level, so the game's own level stays out of sight
+    const onPath = AR.from === 'level';
+    const rows = [[cap(g.unit), `${prog}/${g.count}`], ['Енергія', `+${AR.eGain} ⚡`], ['Очки', `+${AR.sGain}`]];
+    if (!onPath) rows.push(AR.won ? ['Наступного разу', `рівень ${AR.level + 1}`] : ['Рівень гри', String(AR.level)]);
+    drawPanel(AR.won ? (onPath ? 'Пройдено!' : `Рівень ${AR.level} пройдено!`) : 'Майже вийшло', d.accent || PAL[3], rows,
+      AR.resultAt, AR.from === 'rush' ? 'Тапни, щоб повернутись' : 'Тапни, щоб продовжити');
   }
 }
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -1148,7 +1150,7 @@ function drawAd() {
   const B = R.btn, bx = B.x + B.w / 2, by = B.y + B.h / 2;
   if (AD.done && AD.done.won) {
     ctx.fillStyle = GOOD; rrect(B.x, B.y, B.w, B.h, 27); ctx.fill();
-    txt(`Ти в 1%! Забрати ${rewardLabel(AD.reward)}`, bx, by, 16, '#FFFFFF', { font: FD, max: B.w - 24 });
+    txt(AD.reward ? `Ти в 1%! Забрати ${rewardLabel(AD.reward)}` : 'Ти в 1%! Готово', bx, by, 16, '#FFFFFF', { font: FD, max: B.w - 24 });
   } else if (AD.done) {
     ctx.fillStyle = PAL[0]; rrect(B.x, B.y, B.w, B.h, 27); ctx.fill();
     txt('Майже! Ще раз', bx, by, 16, '#FFFFFF', { font: FD, max: B.w - 24 });
@@ -1190,7 +1192,7 @@ function dot(x, y, r, col) {
 }
 function digit(x, y, r, d) {
   if (!d) return;
-  ctx.font = `800 ${Math.max(8, r * 1.15)}px ${FD}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `800 ${Math.max(10, r * 1.15)}px ${FD}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#FFFFFF'; ctx.fillText(String(d), x, y + r * 0.06);
 }
 function bolt(x, y, s, color) {
@@ -1324,11 +1326,17 @@ function drawChain() {
   ctx.strokeStyle = rgba(col, 0.4); ctx.lineWidth = 3;
   for (const [x, y] of pts) { circle(x, y, cs * 0.44); ctx.stroke(); }
 }
+// Sudoku pieces are small and their digits decide where they go, so the tray shows them bigger.
+function trayCs(p) {
+  const t = L.tray;
+  return G.sudoku ? Math.min(L.board.cell * 0.85, (t.w / 3) * 0.84 / p.w, t.h * 0.82 / p.h) : L.trayCell;
+}
 function drawTray() {
-  const t = L.tray, sw = t.w / 3, cs = L.trayCell;
+  const t = L.tray, sw = t.w / 3;
   for (let i = 0; i < 3; i++) {
     const p = G.tray[i];
     if (!p || (drag && drag.slot === i)) continue;
+    const cs = trayCs(p);
     const k = clamp((now - p.born) / 0.35, 0, 1);
     if (k <= 0) continue;
     const s = easeOutBack(k), fits = anyFit(p);
@@ -1344,7 +1352,7 @@ function drawTray() {
 }
 function drawDrag() {
   const p = drag.piece, k = easeOutCubic(clamp((now - drag.t0) / 0.14, 0, 1));
-  const cs = lerp(L.trayCell, L.board.cell, k), lift = drag.lift * k; // grow out of the tray and rise
+  const cs = lerp(trayCs(p), L.board.cell, k), lift = drag.lift * k; // grow out of the tray and rise
   const ox = drag.x - p.w * cs / 2, oy = drag.y - lift - p.h * cs / 2;
   ctx.save(); ctx.shadowColor = 'rgba(39,48,63,0.22)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 8;
   drawPiece(p, ox, oy, cs, 1);
@@ -1444,7 +1452,7 @@ function drawHUD() {
   if (G.mode === 'solo') {
     if (AR.def) {
       txt(AR.def.title, W / 2, rowY, clamp(hh * 0.24, 20, 30), INK, { font: FD, max: hw - 40 });
-      txt(`${AR.def.family || 'Аркада'} · ${Math.min(AR.inst ? AR.inst.progress : 0, AR.goal.count)}/${AR.goal.count} ${AR.goal.unit}`, W / 2, y0 + hh - 14, 13.5, SOFT, { font: FB, weight: 800, max: hw });
+      txt(`${AR.def.family || 'Аркада'} · ${Math.min(AR.inst ? AR.inst.progress : 0, AR.goal.count)}/${AR.goal.count} ${AR.goal.unit}`, W / 2, Math.min(y0 + hh - 14, L.arena.y - 12), 13.5, SOFT, { font: FB, weight: 800, max: hw });
     }
     return;
   }
@@ -1480,8 +1488,8 @@ function drawHUD() {
     if (prog > 0) { ctx.strokeStyle = def ? def.accent || PAL[3] : PAL[3]; ctx.beginPath(); ctx.arc(rx, rowY, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * prog); ctx.stroke(); }
     if (def) drawGameIcon(def, rx, rowY, 11);
   } else {
-    txt('★', rx, rowY - 5, 14, PAL[1], { font: FB, weight: 900 });
-    txt(String(Math.round(G.shown)), rx, rowY + 8, 10, INK, { font: FD, max: 38 });
+    txt('ОЧКИ', rx, rowY - 6, 7.5, SOFT, { font: FB, weight: 900 });
+    txt(String(Math.round(G.shown)), rx, rowY + 6, 11, INK, { font: FD, max: 38 });
   }
   if (G.mode === 'level' && G.lvl && G.state !== 'arcade') drawGoals(W / 2, y0 + hh - 14, hw);
   else { const [st, sc] = statusText(); txt(st, W / 2, y0 + hh - 14, 13.5, sc, { font: FB, weight: 800, max: hw }); }
@@ -1505,7 +1513,8 @@ function drawLevelIntro() {
   const lv = G.lvl; if (!lv || !lv.intro) return;
   const b = L.board, cw = Math.min(b.s - 12, 330);
   const tipLines = lv.def.tip ? wrapText(lv.def.tip, cw - 40, `800 14px ${FB}`) : [];
-  const ch = 150 + tipLines.length * 20;
+  const goalLine = PG.hooks.goalText ? 'Треба: ' + lv.goals.map(g => PG.hooks.goalText(g)).join(' · ') : '';
+  const gy = goalLine ? 24 : 0, ch = 150 + gy + tipLines.length * 20;
   const x = W / 2 - cw / 2, y = b.y + b.s / 2 - ch / 2;
   const k = easeOutBack(clamp((now - lv.introAt) / 0.35, 0, 1));
   ctx.save(); ctx.translate(W / 2, y + ch / 2); ctx.scale(k, k); ctx.translate(-W / 2, -(y + ch / 2));
@@ -1515,7 +1524,8 @@ function drawLevelIntro() {
   txt(lv.def.sudoku ? `РІВЕНЬ ${lv.n} · СУДОКУ` : `РІВЕНЬ ${lv.n}`, W / 2, y + 28, 12, lv.def.sudoku ? PAL[2] : SOFT, { font: FB, weight: 900 });
   txt(lv.def.title || 'Завдання', W / 2, y + 56, 20, INK, { font: FD, max: cw - 32 });
   drawGoals(W / 2, y + 90, cw - 20);
-  tipLines.forEach((l, i) => txt(l, W / 2, y + 120 + i * 20, 14, INK, { font: FB, weight: 800 }));
+  if (goalLine) txt(goalLine, W / 2, y + 118, 13, SOFT, { font: FB, weight: 900, max: cw - 24 });
+  tipLines.forEach((l, i) => txt(l, W / 2, y + 120 + gy + i * 20, 14, INK, { font: FB, weight: 800 }));
   txt(`${lv.movesLeft} ходів · тапни, щоб почати`, W / 2, y + ch - 20, 12.5, rgba(PAL[3], 0.65 + 0.35 * Math.sin(now * 6)), { font: FB, weight: 900, max: cw - 24 });
   ctx.restore();
 }

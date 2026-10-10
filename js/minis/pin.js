@@ -33,7 +33,7 @@
     }
   ];
 
-  // Rising pop-up text (PG.floatText is drawn under the ad frame, so mini-games draw their own).
+  // Rising pop-up text drawn by the game itself, so it stays clipped to the play rect and shakes with it.
   function popText(ctx, x, y, text, color, size, k) {
     const s = easeOutBack(clamp(k * 4, 0, 1)), a = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
     ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y - k * 34); ctx.scale(s, s);
@@ -280,7 +280,7 @@
         if (sk > 0) ctx.translate(Math.sin(PG.now * 97) * 6 * sk, Math.cos(PG.now * 83) * 4 * sk);
         // glass, the big faint gold count, dead corners
         ctx.fillStyle = 'rgba(255,255,255,0.72)'; poly(ctx, L.outline, v); ctx.fill();
-        if (roomy || state === 'play') txt(String(got), X + 50 * s, Y + 62 * s, 40 * s, 'rgba(39,48,63,0.07)', { font: FD });
+        if (roomy || state === 'play') txt(String(Math.min(got, need)), X + 50 * s, Y + 62 * s, 40 * s, 'rgba(39,48,63,0.07)', { font: FD });
         ctx.fillStyle = SOLID;
         for (const p of L.solids) { poly(ctx, p, v); ctx.fill(); }
         // balls

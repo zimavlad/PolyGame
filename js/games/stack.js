@@ -107,7 +107,7 @@
         }
         const col = `hsl(${h},35%,36%)`, cx = A.x + A.w / 2;
         txt(String(inst.progress), cx, A.y + A.h * 0.36, Math.min(56, A.w * 0.16), col, { font: FD });
-        if (!s.moving && !inst.over) txt('Тапни — блок поїде', cx, A.y + A.h * 0.36 + 44, 14, col, { font: FB, weight: 900 });
+        if (!s.moving && !inst.over) txt('Тапни — блок поїде', cx, baseTop - s.blocks.length * lh - 18, 14, col, { font: FB, weight: 900 }); // just above the slab, clear of the intro card
       };
       return inst;
     }

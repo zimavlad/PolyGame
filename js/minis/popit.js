@@ -59,7 +59,10 @@
           }
         }
         txt(`${ROWS.length * COLS - left}/${ROWS.length * COLS}`, A.x + A.w / 2, A.y + A.h - 14, 13, INK, { font: FB, weight: 900 });
-        if (inst.over && !inst.over.won) txt('Час вийшов', A.x + A.w / 2, A.y + A.h / 2, 26, INK, { font: FD });
+        if (inst.over && !inst.over.won) {
+          ctx.fillStyle = 'rgba(244,246,250,0.8)'; ctx.fillRect(A.x, A.y, A.w, A.h);
+          txt('Час вийшов', A.x + A.w / 2, A.y + A.h / 2, 26, INK, { font: FD });
+        }
       };
       return inst;
     }
