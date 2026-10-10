@@ -259,6 +259,7 @@ function refreshMenu() {
   }
 }
 function goMenu() {
+  PG.quitGame();
   if (PG.updateReady && PG.applyUpdate()) return;
   PG.newPuzzle({ mode: 'endless', seed: 'endless' });
   G.state = 'menu';

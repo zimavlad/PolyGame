@@ -530,13 +530,78 @@ function sudokuGivens(n, focusBox) {
     n--;
   }
 }
+// Sudoku: legal digits for a piece at (r0, c0), the solution's digit first. Cells of one piece must not repeat
+// a digit in a shared row, column or box either. Returns null when some cell has no legal digit.
+function legalDigits(cells, r0, c0) {
+  const out = [];
+  const ok = (i, d) => {
+    const r = r0 + cells[i][0], c = c0 + cells[i][1];
+    if (digitClash(r, c, d).length) return false;
+    for (let j = 0; j < i; j++) {
+      const r2 = r0 + cells[j][0], c2 = c0 + cells[j][1];
+      if (out[j] === d && (r2 === r || c2 === c || (r2 - r2 % 3 === r - r % 3 && c2 - c2 % 3 === c - c % 3))) return false;
+    }
+    return true;
+  };
+  const go = i => {
+    if (i === cells.length) return true;
+    const s = G.sol ? G.sol[r0 + cells[i][0]][c0 + cells[i][1]] : 0;
+    for (const d of [s, ...shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9])]) if (d && ok(i, d)) { out[i] = d; if (go(i + 1)) return true; }
+    return false;
+  };
+  return go(0) ? out : null;
+}
+// Sudoku: a piece cut to fit the holes of the fullest row, column or box with legal digits, so finishing
+// a group never hinges on a lucky draw. Prefers spots that complete a group. Returns null when none helps.
+function helperPiece() {
+  const cand = [];
+  // groups the level still asks for count double
+  const want = t => !G.lvl || G.lvl.goals.some(g => g.t === t && g.have < g.n) ? 2 : 1;
+  const wLine = want('lines'), wBox = want('boxes');
+  for (const sh of SUDOKU_SHAPES) {
+    if (sh.cells.length > 3) continue;
+    for (let r = 0; r <= 9 - sh.h; r++) for (let c = 0; c <= 9 - sh.w; c++) {
+      if (!fitsGeom(sh, r, c)) continue;
+      let score = 0;
+      const seen = new Set();
+      for (const [dr, dc] of sh.cells) {
+        const rr = r + dr, cc = c + dc, br = rr - rr % 3, bc = cc - cc % 3;
+        for (const [key, inG, w] of [['r' + rr, (y, x) => y === rr, wLine], ['c' + cc, (y, x) => x === cc, wLine], ['b' + br + bc, (y, x) => y - y % 3 === br && x - x % 3 === bc, wBox]]) {
+          if (seen.has(key)) continue;
+          seen.add(key);
+          let fill = 0;
+          for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) if (inG(y, x) && (G.grid[y][x] >= 0 || sh.cells.some(([a, b]) => r + a === y && c + b === x))) fill++;
+          if (fill >= 6) score = Math.max(score, (fill === 9 ? 100 : fill * fill) * w);
+        }
+      }
+      if (score) cand.push({ sh, r, c, score });
+    }
+  }
+  cand.sort((a, b) => b.score - a.score);
+  for (const k of cand.slice(0, 12)) {
+    if (k.score < cand[0].score) break;
+    const dig = legalDigits(k.sh.cells, k.r, k.c);
+    if (dig) { const p = pieceFrom(k.sh, randi(PAL.length)); p.dig = dig; return p; }
+  }
+  return null;
+}
 function refillTray() {
   let set = null;
   for (let i = 0; i < 30; i++) { set = [makePiece(), makePiece(), makePiece()]; if (set.some(anyFit)) break; }
+  // always on the first sudoku levels, often later on so the goals keep some challenge
+  if (G.sudoku && Math.random() < (!G.lvl || G.lvl.n <= 9 ? 1 : 0.6)) { const h = helperPiece(); if (h) set[randi(3)] = h; }
   set.forEach((p, i) => { p.born = now + i * 0.07; });
   G.tray = set;
 }
+// An endless game left through the menu, restart or a self-update still counts for the record.
+function quitGame() {
+  if (G.mode !== 'endless' || G.state === 'over' || G.state === 'menu' || !G.placements) return;
+  if (G.score > best) { best = G.score; store.set('polygame.best', best); }
+  LOG.ev('game_quit', { g: G.gameNo, score: G.score, sec: Math.round((Date.now() - G.gameT0) / 1000), places: G.placements, best });
+  G.placements = 0;
+}
 function newPuzzle(opts) {
+  quitGame();
   resetBoard();
   Object.assign(G, {
     score: 0, shown: 0, energy: opts.energy == null ? 3 : opts.energy, rush: { meter: 0, need: 3, count: 0, next: null, order: [] }, streak: 0,
@@ -1026,6 +1091,7 @@ function closeAd() {
   if (done) done({ won });
 }
 function adPointer(type, x, y) {
+  if (type === 'down' && now - AD.t0 < 0.45) return; // a quick double tap on the screen before must not reach the ad
   const R = adRects(), inR = r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   if (type === 'down') {
     const canClose = now >= AD.closeAt || (AD.done && AD.done.won);
@@ -1456,7 +1522,8 @@ function drawLevelIntro() {
 
 /* ================= loop ================= */
 function update(dt) {
-  for (let i = timers.length - 1; i >= 0; i--) {
+  // timers wait while paused: a pending arcade round or game over must not start behind the pause card
+  if (G.state !== 'paused') for (let i = timers.length - 1; i >= 0; i--) {
     if (timers[i] && now >= timers[i].at) { const f = timers[i].fn; timers.splice(i, 1); f(); }
   }
   G.shown += (G.score - G.shown) * Math.min(1, dt * 8);
@@ -1604,7 +1671,10 @@ function openPause() {
   $('pauseInfo').textContent = G.mode === 'level' && G.lvl ? `Рівень ${G.lvl.n}` : G.mode === 'solo' ? 'Ігротека' : 'Нескінченна гра';
   showOverlay('pause');
 }
-function closePause() { showOverlay(null); G.state = pausedFrom || 'puzzle'; G.busyUntil = now + 0.25; }
+function closePause() {
+  showOverlay(null); G.state = pausedFrom || 'puzzle'; G.busyUntil = now + 0.25;
+  if (G.state === 'puzzle') checkStuck();
+}
 
 /* ================= lifecycle ================= */
 // iOS only unlocks Web Audio inside touchend/click, so listen for those too.
@@ -1658,7 +1728,7 @@ window.PG = {
   log: (type, data) => LOG.ev(type, data),
   arcade: ARC, ads: ADS,
   // used by js/levels.js
-  G, store, LOG, $, showOverlay, closePause, newPuzzle, startArcade, showAd, sudokuSolution, after, toast, refillTray,
+  G, store, LOG, $, showOverlay, closePause, newPuzzle, quitGame, startArcade, showAd, sudokuSolution, after, toast, refillTray,
   get updateReady() { return updateReady; }, applyUpdate, gameOver, levelCheck,
   hooks: {},
   get best() { return best; }

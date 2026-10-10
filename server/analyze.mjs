@@ -43,8 +43,8 @@ for (const s of by('start')) {
   line(s.did?.slice(0, 8) || '?', `${platform(s.ua)} · ${s.vw}x${s.vh}@${s.dpr} · ${s.standalone ? 'home-screen app' : 'browser'} · vibrate:${s.vibrate ? 'yes' : 'no'} · build ${s.build}`);
 }
 
-const games = by('game_over');
-head(`Games (${by('game_start').length} started, ${games.length} finished)`);
+const games = by('game_over'), quits = by('game_quit');
+head(`Games (${by('game_start').length} started, ${games.length} finished, ${quits.length} left midway)`);
 if (games.length) {
   const sc = games.map(g => g.score), dur = games.map(g => g.sec);
   line('score avg / median / max', `${Math.round(avg(sc))} / ${pct(sc, 0.5)} / ${Math.max(...sc)}`);
@@ -56,6 +56,7 @@ if (games.length) {
   line('board fill at the end', `${Math.round(avg(games.map(g => g.fill)) * 100)}%`);
   line('energy left at the end', r1(avg(games.map(g => g.energy))));
 }
+if (quits.length) line('left midway: score avg / moves', `${Math.round(avg(quits.map(g => g.score)))} / ${r1(avg(quits.map(g => g.places)))}`);
 
 head('Puzzle');
 const places = by('place'), backs = by('drop_back');
