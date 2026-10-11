@@ -1,7 +1,7 @@
 {
   "name": "PolyGame",
   "short_name": "PolyGame",
-  "description": "П'ять хітів в одній грі: Block Blast, Sudoku, Two Dots, Don't Touch the Spikes і Stack.",
+  "description": "14 ігор в одній: головоломка з судоку й точками, 7 аркад і 6 міні-ігор.",
   "lang": "uk",
   "start_url": "./",
   "scope": "./",
