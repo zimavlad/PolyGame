@@ -7,7 +7,7 @@ const { G, store, $, showOverlay } = PG;
 
 /* ================= level definitions ================= */
 // Arcade nodes rotate through the games in this order (missing modules are skipped).
-const ARC_ORDER = ['spike', 'stack', 'knife', 'zigzag', 'colorswitch', 'flappy', 'timber'];
+const ARC_ORDER = ['spike', 'stack', 'knife', 'zigzag', 'colorswitch', 'flappy', 'timber', 'foodhunt'];
 const HAND = [
   { title: 'Перші лінії', moves: 10, goals: [{ t: 'lines', n: 2 }], seed: 'rows', tray: [['XXX'], ['XXX'], ['XX', 'XX']], tip: 'Перетягуй фігури на поле. Заповни 2 рядки або стовпці — вони зникнуть.' },
   { title: 'Квадрати 3×3', moves: 12, goals: [{ t: 'boxes', n: 2 }], seed: 'boxes', tray: [['X', 'X', 'X'], ['X', 'X', 'X'], ['X']], tip: 'Заповнений квадрат 3×3 теж зникає.' },
