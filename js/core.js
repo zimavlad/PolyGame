@@ -874,7 +874,9 @@ function startArcade(id, opts = {}) {
   const level = opts.level || ARC.level(id);
   let goal = { count: 10, unit: 'очок' };
   try { goal = def.goal(level) || goal; } catch (e) { logErr(e.message, 'goal:' + id, 0, 0, e.stack); }
-  Object.assign(AR, { def, level, goal, sub: 'intro', t0: now, endAt: 0, resultAt: 0, from: opts.from || 'rush', onDone: opts.onDone || null, won: false, eGain: 0, sGain: 0, inst: null, startAt: 0 });
+  let twist = '';
+  try { twist = typeof def.twist === 'function' ? String(def.twist(level) || '') : ''; } catch (e) { logErr(e.message, 'twist:' + id, 0, 0, e.stack); }
+  Object.assign(AR, { def, level, goal, twist, sub: 'intro', t0: now, endAt: 0, resultAt: 0, from: opts.from || 'rush', onDone: opts.onDone || null, won: false, eGain: 0, sGain: 0, inst: null, startAt: 0 });
   try { AR.inst = def.create(level, arcadeApi(def)); }
   catch (e) { logErr(e.message, 'create:' + id, 0, 0, e.stack); AR.inst = null; }
   if (!AR.inst) { AR.def = null; if (opts.onDone) opts.onDone({ won: false, broken: true }); return; }
@@ -962,7 +964,8 @@ function drawArcade() {
   }
   if (AR.sub === 'intro' || AR.sub === 'paused') {
     const cw = Math.min(A.w - 28, 330), howto = AR.sub === 'paused' ? [] : (d.howto || []);
-    const ch = AR.sub === 'paused' ? 120 : 150 + howto.length * 22;
+    const tw = AR.sub === 'paused' ? '' : AR.twist;
+    const ch = AR.sub === 'paused' ? 120 : 150 + howto.length * 22 + (tw ? 36 : 0);
     const cy0 = A.y + Math.max(14, A.h * 0.06);
     ctx.save();
     ctx.shadowColor = 'rgba(39,48,63,0.16)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
@@ -981,6 +984,11 @@ function drawArcade() {
     txt(d.title, cx, y + 32, Math.min(26, cw * 0.09), INK, { font: FD, max: cw - 24 });
     txt(`Рівень ${AR.level} · Ціль: ${AR.goal.count} ${AR.goal.unit}`, cx, y + 62, 14, SOFT, { font: FB, weight: 900, max: cw - 24 });
     howto.forEach((h, i) => txt(h, cx, y + 90 + i * 22, 14.5, INK, { font: FB, weight: 800, max: cw - 24 }));
+    if (tw) { // what this level adds, so progress is seen and not only felt
+      const ty = y + 92 + howto.length * 22 + 6;
+      ctx.fillStyle = rgba(d.accent || PAL[3], 0.13); rrect(cx - (cw - 36) / 2, ty - 14, cw - 36, 28, 14); ctx.fill();
+      txt(tw, cx, ty, 13.5, INK, { font: FB, weight: 900, max: cw - 56 });
+    }
     txt('ТАПНИ, ЩОБ ПОЧАТИ', cx, cy0 + ch - 20, 13, rgba(d.accent || PAL[3], 0.6 + 0.4 * Math.sin(now * 6)), { font: FD, max: cw - 24 });
   }
   if (AR.sub === 'result') {

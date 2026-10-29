@@ -56,6 +56,7 @@ PG.arcade.register({
   accent: '#7765EE',              // key colour, ideally from PG.PAL
   howto: ['Тапни, щоб кинути ніж', 'Не влуч у ніж, що вже стирчить'], // 1–2 short lines
   goal: level => ({ count: 6 + level, unit: 'ножів' }),               // what wins a round at this level
+  twist: level => level === 1 ? 'Розминка: повільно й без пасток' : 'Нове: колода міняє напрям', // optional, see below
   icon(ctx, x, y, r) { /* optional tiny icon inside a circle of radius r */ },
   create(level, api) { /* api.level, api.fill (0..1 puzzle board fill) */ return inst; }
 });
@@ -79,6 +80,13 @@ inst = {
 ```
 
 Rules the host relies on:
+
+- **Progression must be felt, not only measured.** Players notice difficulty in steps, not in 3% increments. Level 1 is
+  a warm-up; from level 2 every level is clearly harder than the one before: raise speed about 10% a level until about
+  level 10, and introduce a new visible element (a hazard, a pattern, a behaviour) at least every second level up to
+  level 8 or so. Inside a round the pressure also builds toward the goal. `twist(level)` returns one short line
+  (at most ~34 characters) that the host shows on the intro card, naming what this level adds:
+  'Розминка: повільно', 'Нове: подвійні кільця', 'Швидше на 10%', 'Нове: труби рухаються'. Return '' for none.
 
 - **Level 1 must be easy**: a first-time casual player should win it in one or two tries, in 20–45 seconds.
   Each level adds a little (speed, gaps, hazards, goal). Inside a round, ramp gently toward the goal.
