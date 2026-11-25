@@ -7,7 +7,10 @@ A module is a plain script wrapped in an IIFE that calls `PG.arcade.register(...
 
 Reference implementations: `js/games/spike.js`, `js/games/stack.js` (arcade) and `js/minis/popit.js` (mini-game).
 
-All text the player sees is **Ukrainian**. Draw everything with the canvas: no images, no external assets, no DOM.
+All text the player sees is **Ukrainian**. Draw with the canvas, no DOM. Generated art (WebP in `img/`) is fine: load it with
+`PG.sprite(path)` / `PG.drawSprite(ctx, path, x, y, h, {rot, flip, alpha, ay})` and draw Ava with
+`PG.ava.draw(ctx, x, y, size, {pose, t, dir})` (poses: sit, happy, stand, walk, run, sniff, stalk, jump, scared, sleep).
+New characters and items come from the `character-sprites` skill, not from hand-drawn canvas paths.
 
 ## Running a module on its own
 
@@ -57,7 +60,9 @@ PG.arcade.register({
   howto: ['Тапни, щоб кинути ніж', 'Не влуч у ніж, що вже стирчить'], // 1–2 short lines
   goal: level => ({ count: 6 + level, unit: 'ножів' }),               // what wins a round at this level
   twist: level => level === 1 ? 'Розминка: повільно й без пасток' : 'Нове: колода міняє напрям', // optional, see below
-  icon(ctx, x, y, r) { /* optional tiny icon inside a circle of radius r */ },
+  icon(ctx, x, y, r) { /* optional tiny icon inside a circle of radius r (also rendered into the library tile) */ },
+  thumb: 'img/...webp',           // optional: a picture for the library tile instead of icon()
+  rush: false, path: false,       // optional: keep a long, calm game out of the endless-game rotation / the level path
   create(level, api) { /* api.level, api.fill (0..1 puzzle board fill) */ return inst; }
 });
 ```

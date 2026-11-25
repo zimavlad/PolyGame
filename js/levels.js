@@ -35,9 +35,10 @@ function generated(n, noArcade) {
   const k = n - HAND.length, step = Math.floor((k - 1) / 3), cyc = (k - 1) % 3, rng = seeded(n);
   if (cyc === 2 && !noArcade) { const ids = availableArcade(); if (ids.length) return { kind: 'arcade', game: ids[(step + 4) % ids.length] }; }
   if (cyc === 1) {
-    const n = Math.min(2 + Math.floor(step / 2), 4), v = step % 3;
-    const goals = v === 0 ? [{ t: 'boxes', n }] : v === 1 ? [{ t: 'lines', n }] : [{ t: 'boxes', n: 1 }, { t: 'lines', n: n - 1 }];
-    return { title: 'Судоку', sudoku: true, moves: 12 + n * 4, goals, seed: `sudoku:${v === 0 ? 'b' : v === 1 ? 'l' : 'm'}${n}` };
+    // sudoku lines are the hardest goal on the path (one player needed six tries at level 20): fewer of them, more moves
+    const n = Math.min(2 + Math.floor(step / 3), 4), v = step % 3, nl = v === 1 ? Math.min(n, 2 + Math.floor(step / 5)) : n;
+    const goals = v === 0 ? [{ t: 'boxes', n }] : v === 1 ? [{ t: 'lines', n: nl }] : [{ t: 'boxes', n: 1 }, { t: 'lines', n: Math.max(1, nl - 1) }];
+    return { title: 'Судоку', sudoku: true, moves: 16 + n * 5, goals, seed: `sudoku:${v === 0 ? 'b' : v === 1 ? 'l' : 'm'}${n}` };
   }
   const c1 = Math.floor(rng() * 4), c2 = (c1 + 1 + Math.floor(rng() * 3)) % 4;
   const kinds = [
@@ -247,7 +248,7 @@ function openLibrary() {
   const seen = store.get('polygame.played', {}) || {};
   for (const d of PG.arcade.list()) {
     const isNew = NEW_GAMES.includes(d.id);
-    const t = tile(d.accent || '#7765EE', d.title[0], d.title, `${d.family || 'Аркада'} · рівень ${PG.arcade.level(d.id)}`, () => { seen[d.id] = 1; store.set('polygame.played', seen); playSolo(d.id); }, iconFor(d), isNew && !seen[d.id]);
+    const t = tile(d.accent || '#7765EE', d.title[0], d.title, `${d.family || 'Аркада'} · рівень ${PG.arcade.level(d.id)}`, () => { seen[d.id] = 1; store.set('polygame.played', seen); playSolo(d.id); }, d.thumb || iconFor(d), isNew && !seen[d.id]);
     (isNew ? N : A).appendChild(t);
   }
   for (const d of PG.ads.list()) {

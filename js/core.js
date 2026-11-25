@@ -52,6 +52,14 @@ function audioInit() {
         const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200; lp.Q.value = 0.3;
         MASTER = AC.createGain(); MASTER.gain.value = 0.85;
         MASTER.connect(lp); lp.connect(AC.destination);
+        // a small soft room: a short synthetic reverb tail makes the synth notes warmer and less "beepy"
+        try {
+          const len = Math.floor(AC.sampleRate * 1.1), ir = AC.createBuffer(2, len, AC.sampleRate);
+          for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+          const rev = AC.createConvolver(); rev.buffer = ir;
+          const wet = AC.createGain(); wet.gain.value = 0.16;
+          MASTER.connect(rev); rev.connect(wet); wet.connect(lp);
+        } catch (e) {}
       }
     }
     if (AC && AC.state === 'suspended') AC.resume();

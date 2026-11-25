@@ -46,7 +46,7 @@
     title: 'Піаніно',
     family: 'Музика',
     accent: ACCENT,
-    howto: ['Тапай чорні плитки знизу вгору', 'Не пропускай і не тапай повз'],
+    howto: ['Тапай темні плитки знизу вгору', 'Три серця: промах забирає одне'],
     goal: lv => ({ count: parse(SONGS[(lv - 1) % SONGS.length].notes).length, unit: 'нот' }),
     twist: lv => { const sg = SONGS[(lv - 1) % SONGS.length]; return `«${sg.name}»${lv > 1 ? ' · швидше' : ''}`; },
     icon(ctx, x, y, r) { for (let i = 0; i < 3; i++) { ctx.fillStyle = i === 1 ? '#27303F' : '#FFFFFF'; ctx.fillRect(x - r + i * r * 0.68, y - r * 0.8, r * 0.6, r * 1.6); } },
@@ -56,15 +56,18 @@
       let acc = 0; const tiles = notes.map((n, i) => { const t = { at: acc, lane: ln[i], n, hit: false }; acc += n.len; return t; });
       const lap = Math.floor((level - 1) / SONGS.length);
       const speed0 = Math.min(3.2 + (level - 1) * 0.22 + lap * 0.5, 7);
-      const s = { t: 0, pos: -4, speed: speed0, next: 0, flash: [], miss: null, started: false, glow: 0 };
+      const s = { t: 0, pos: -4, speed: speed0, next: 0, flash: [], miss: null, started: false, glow: 0, lives: 3 };
       const inst = { progress: 0, over: null, stats: { level, song: song.name } };
       inst._s = s; s.tiles = tiles;
       const ROW = A => A.h / 7.5; // height of one eighth
       const tileY = (A, tl) => A.y + A.h - 24 - (tl.at - s.pos) * ROW(A); // bottom edge of the tile
+      // three lives: a wrong tap or a slipped tile costs one; the tune goes on
       function fail(lane, A, why) {
-        s.miss = { lane, t: s.t, why }; inst.over = { won: false, cause: why };
-        PG.tone && PG.tone(130, 0.5, 'sawtooth', 0.06); PG.tone && PG.tone(138, 0.5, 'sawtooth', 0.05);
-        PG.buzz(PG.HAP.thud); PG.shake(5);
+        s.miss = { lane, t: s.t, why }; s.lives--;
+        PG.tone && PG.tone(130, 0.4, 'sawtooth', 0.05); PG.tone && PG.tone(138, 0.4, 'sawtooth', 0.04);
+        PG.buzz(PG.HAP.thud); PG.shake(4);
+        if (why === 'missed') { const tl = tiles[s.next]; if (tl) { tl.hit = true; tl.hitAt = s.t; tl.missed = true; s.next++; inst.progress++; } }
+        if (s.lives <= 0) inst.over = { won: false, cause: why };
       }
       Object.assign(inst, {
         start() { s.started = true; s.skip = true; }, // the tap that starts the round is not a note
@@ -82,7 +85,7 @@
             else PG.reward({ score: 5 });
             // the tune catches up: if the player is ahead, scroll a little faster
             if (yb < A.y + A.h * 0.5) s.pos += 0.15;
-          } else if (!tiles.slice(s.next, s.next + 3).some(t => t.lane === lane && Math.abs(tileY(A, t) - y) < ROW(A) * 2)) fail(lane, A, 'wrong');
+          } else if (s.t - (s.miss ? s.miss.t : -9) > 0.5 && !tiles.slice(s.next, s.next + 3).some(t => t.lane === lane && Math.abs(tileY(A, t) - y) < ROW(A) * 2)) fail(lane, A, 'wrong');
         },
         idle(dt) { s.t += dt; },
         update(dt, A) {
@@ -119,7 +122,8 @@
             ctx.fillStyle = 'rgba(255,255,255,0.14)'; PG.rrect(x + 6, yt + 5, w - 12, 5, 3); ctx.fill();
             if (i === s.next) { ctx.strokeStyle = rgba('#F5B12E', 0.6 + 0.4 * Math.sin(s.t * 10)); ctx.lineWidth = 2.5; PG.rrect(x, yt, w, h, 10); ctx.stroke(); if (!s.started || inst.progress === 0) txt('ТАП', x + w / 2, yt + h / 2, 14, '#FFFFFF', { font: FD }); }
           }
-          if (s.miss) { ctx.fillStyle = rgba('#F2615E', 0.45 * (0.5 + 0.5 * Math.sin(s.t * 18))); ctx.fillRect(A.x + s.miss.lane * lw, A.y, lw, A.h); }
+          if (s.miss && (inst.over || s.t - s.miss.t < 0.5)) { ctx.fillStyle = rgba('#F2615E', 0.4 * (0.5 + 0.5 * Math.sin(s.t * 18))); ctx.fillRect(A.x + s.miss.lane * lw, A.y, lw, A.h); }
+          for (let i = 0; i < 3; i++) { ctx.fillStyle = i < s.lives ? '#F2615E' : 'rgba(94,64,170,0.18)'; ctx.beginPath(); const hx = A.x + A.w - 18 - i * 20, hy = A.y + 18; ctx.moveTo(hx, hy + 5); ctx.bezierCurveTo(hx - 9, hy - 1, hx - 6, hy - 9, hx, hy - 4); ctx.bezierCurveTo(hx + 6, hy - 9, hx + 9, hy - 1, hx, hy + 5); ctx.fill(); }
         }
       });
       return inst;

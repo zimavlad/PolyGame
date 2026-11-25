@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <!-- standalone:start -->
-<meta name="description" content="16 ігор в одній: головоломка з судоку й точками, 8 аркад і 7 міні-ігор.">
+<meta name="description" content="23 гри в одній: головоломка з судоку й точками, ігри з собакою Авою, аркади й міні-ігри.">
 <meta name="theme-color" content="#E7ECF3">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="PolyGame">
 <meta property="og:type" content="website">
-<meta property="og:title" content="PolyGame — 16 ігор в одній">
-<meta property="og:description" content="Головоломка з судоку й точками, 8 аркад і 7 міні-ігор. Грай у браузері або додай на головний екран.">
+<meta property="og:title" content="PolyGame — 23 гри в одній">
+<meta property="og:description" content="Ігри з собакою Авою, піаніно, пекарня, розмальовка, Food Hunt, головоломка з судоку й аркади. Грай у браузері або додай на головний екран.">
 <meta property="og:image" content="https://zimavlad.github.io/PolyGame/icons/og-4.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -117,6 +117,43 @@ button{font:inherit;color:inherit}
 .tile b{font-family:var(--font-display);font-weight:800;font-size:14px}
 .tile span{font-size:12px;font-weight:800;color:var(--ink-soft);line-height:1.3}
 @media (prefers-reduced-motion:reduce){.dots i,.node.current .disc{animation:none}}
+/* BIG UPDATE pop-up */
+.upd{background:rgba(39,30,70,.55);z-index:5;overflow:hidden}
+.upd-card{position:relative;background:var(--card);border-radius:30px;width:100%;max-width:400px;max-height:100%;overflow:auto;overscroll-behavior:contain;box-sizing:border-box;padding:0 0 20px;text-align:center;box-shadow:0 30px 80px rgba(30,20,60,.45);animation:updIn .7s cubic-bezier(.2,1.4,.4,1) both}
+.upd-card::before{content:"";position:absolute;inset:-3px;border-radius:33px;padding:3px;background:linear-gradient(120deg,var(--coral),var(--amber),var(--teal),var(--violet),var(--coral));background-size:300% 300%;animation:updShift 4s linear infinite;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.upd-hero{position:relative;border-radius:30px 30px 0 0;overflow:hidden;aspect-ratio:4/3;background:#F7D9F0}
+.upd-hero img{width:100%;height:100%;object-fit:cover;display:block;animation:updFloat 5s ease-in-out infinite}
+.upd-title{font-family:var(--font-display);font-weight:800;font-size:clamp(38px,12vw,52px);letter-spacing:-.02em;line-height:1;margin:-28px 0 0;position:relative;background:linear-gradient(90deg,var(--coral),var(--amber),var(--teal),var(--violet),var(--coral));background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:0;filter:drop-shadow(0 3px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff);animation:updShift 3s linear infinite,updPop .9s .25s cubic-bezier(.2,1.6,.4,1) both}
+.upd-sub{margin:8px 0 12px;color:var(--ink-soft);font-weight:900;font-size:15px}
+.upd-list{list-style:none;margin:0 16px 18px;padding:0;display:grid;gap:8px;text-align:left}
+.upd-list li{display:flex;gap:12px;align-items:center;background:var(--chip);border-radius:18px;padding:10px 12px;animation:updUp .5s calc(.45s + var(--i)*.12s) both}
+.upd-list .ic{flex:0 0 46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:26px;background:var(--c);overflow:hidden}
+.upd-list .ic img{width:100%;height:100%;object-fit:cover}
+.upd-list b{display:block;font-family:var(--font-display);font-weight:800;font-size:15px;line-height:1.2}
+.upd-list span{display:block;font-weight:800;font-size:13px;color:var(--ink-soft);line-height:1.3;margin-top:2px}
+.upd-btn{margin:0 auto;max-width:260px;width:calc(100% - 64px);font-size:20px;padding:17px 24px;animation:updUp .5s 1s both,updBeat 1.6s 1.6s ease-in-out infinite}
+.upd-conf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.upd-conf i{position:absolute;top:-20px;width:9px;height:14px;border-radius:2px;background:var(--c);animation:updFall var(--t) var(--d) linear infinite;opacity:.9}
+@keyframes updIn{0%{transform:scale(.6) translateY(40px);opacity:0}100%{transform:none;opacity:1}}
+@keyframes updShift{0%{background-position:0% 50%}100%{background-position:300% 50%}}
+@keyframes updFloat{0%,100%{transform:scale(1.02) translateY(0)}50%{transform:scale(1.04) translateY(-6px)}}
+@keyframes updPop{0%{transform:scale(.3) rotate(-8deg);opacity:0}100%{transform:none;opacity:1}}
+@keyframes updUp{0%{transform:translateY(16px);opacity:0}100%{transform:none;opacity:1}}
+@keyframes updBeat{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes updFall{0%{transform:translateY(0) rotate(0)}100%{transform:translateY(110vh) rotate(720deg)}}
+.tile{position:relative}
+.tile .ico img{width:100%;height:100%;object-fit:contain;display:block}
+.tile .ico.pic{width:54px;height:54px;border-radius:16px}
+.overlay:not([hidden]) .card,.overlay:not([hidden]) .panel{animation:cardIn .32s cubic-bezier(.2,1.3,.4,1) both}
+@keyframes cardIn{0%{transform:scale(.92) translateY(12px);opacity:0}100%{transform:none;opacity:1}}
+.tile .ico.pic{background:#fff;box-shadow:inset 0 0 0 2px var(--c)}
+.tile .new{position:absolute;top:8px;right:8px;font-size:10px;font-weight:900;letter-spacing:.06em;color:#fff;background:var(--coral);border-radius:999px;padding:3px 7px}
+.menu-ava{display:block;width:120px;height:120px;margin:-6px auto 4px;object-fit:contain;cursor:pointer;animation:avaBob 2.6s ease-in-out infinite;-webkit-user-drag:none}
+.menu-ava.hop{animation:avaHop .6s cubic-bezier(.2,1.5,.4,1)}
+@keyframes avaBob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-4px) rotate(1deg)}}
+@keyframes avaHop{0%{transform:none}40%{transform:translateY(-26px) rotate(-6deg) scale(1.05)}100%{transform:none}}
+@media (prefers-reduced-motion:reduce){.overlay .card,.overlay .panel,.upd-card,.upd-title,.upd-list li,.upd-btn,.upd-hero img,.upd-conf i,.menu-ava{animation:none!important}}
+
 </style>
 </head>
 <body>
@@ -125,7 +162,7 @@ button{font:inherit;color:inherit}
 
   <div id="menu" class="overlay">
     <div class="card">
-      <div class="dots" aria-hidden="true"><i style="--c:var(--coral)"></i><i style="--c:var(--amber)"></i><i style="--c:var(--teal)"></i><i style="--c:var(--violet)"></i></div>
+      <img id="menuAva" class="menu-ava" src="img/ava/happy.webp" alt="Ава" draggable="false">
       <h1 class="logo">POLYGAME</h1>
       <p class="tag">Головоломка, судоку й аркади в одній грі</p>
       <ul class="chips">
@@ -141,6 +178,22 @@ button{font:inherit;color:inherit}
     </div>
   </div>
 
+  <div id="update" class="overlay upd" hidden>
+    <div class="upd-conf" id="updConf" aria-hidden="true"></div>
+    <div class="upd-card" role="dialog" aria-labelledby="updTitle">
+      <div class="upd-hero"><img src="img/hero_update.webp" alt="Ава стрибає серед конфеті й повітряних кульок"></div>
+      <h2 id="updTitle" class="upd-title">BIG UPDATE</h2>
+      <p class="upd-sub">Велике оновлення PolyGame!</p>
+      <ul class="upd-list">
+        <li style="--i:0"><span class="ic" style="--c:#FFE3C2"><img src="img/ava/happy.webp" alt=""></span><div><b>Ава тепер у грі!</b><span>Прогулянка, пошук кісточки й ласощі для Ави</span></div></li>
+        <li style="--i:1"><span class="ic" style="--c:#E6DCFF">🎹</span><div><b>Ще 4 нові ігри</b><span>Піаніно, Пекарня, Гайки й Розмальовка</span></div></li>
+        <li style="--i:2"><span class="ic" style="--c:#FFE1E8">🍔</span><div><b>Food Hunt: нові страви</b><span>Більше смаколиків і нові хитрощі для мурах</span></div></li>
+        <li style="--i:3"><span class="ic" style="--c:#D9F5EE">✨</span><div><b>Усе гарніше</b><span>Нові звуки, вібрація, анімації й меню</span></div></li>
+      </ul>
+      <button id="updGo" class="btn upd-btn" type="button">Грати!</button>
+    </div>
+  </div>
+
   <div id="map" class="overlay screen" hidden>
     <div class="panel">
       <div class="bar"><button id="mapBack" class="icon-btn" type="button" aria-label="Назад">←</button><h2>Шлях</h2><span id="mapStars" class="meta">★ 0</span></div>
@@ -152,6 +205,8 @@ button{font:inherit;color:inherit}
     <div class="panel">
       <div class="bar"><button id="libBack" class="icon-btn" type="button" aria-label="Назад">←</button><h2>Ігротека</h2></div>
       <div class="scroll">
+        <p class="section">Нове ✨<small>Ігри з Авою та ще чотири нові.</small></p>
+        <div id="libNew" class="grid"></div>
         <p class="section">Аркади<small>У кожної свої рівні: перший легкий, далі складніше.</small></p>
         <div id="libArcade" class="grid"></div>
         <p class="section">Міні-ігри з «реклами»<small>Ті самі, що вискакують між рівнями.</small></p>
@@ -200,31 +255,31 @@ button{font:inherit;color:inherit}
   </div>
 </div>
 
-<script>const BUILD = '20261029205106';</script>
-<script src="js/core.js?v=20261029205106"></script>
-<script src="js/ava.js?v=20261029205106"></script>
-<script src="js/games/spike.js?v=20261029205106"></script>
-<script src="js/games/stack.js?v=20261029205106"></script>
-<script src="js/games/knife.js?v=20261029205106"></script>
-<script src="js/games/zigzag.js?v=20261029205106"></script>
-<script src="js/games/colorswitch.js?v=20261029205106"></script>
-<script src="js/games/flappy.js?v=20261029205106"></script>
-<script src="js/games/timber.js?v=20261029205106"></script>
-<script src="js/games/foodhunt.js?v=20261029205106"></script>
-<script src="js/games/avawalk.js?v=20261029205106"></script>
-<script src="js/games/avasniff.js?v=20261029205106"></script>
-<script src="js/games/avamerge.js?v=20261029205106"></script>
-<script src="js/games/bolts.js?v=20261029205106"></script>
-<script src="js/games/piano.js?v=20261029205106"></script>
-<script src="js/games/bakery.js?v=20261029205106"></script>
-<script src="js/games/paint.js?v=20261029205106"></script>
-<script src="js/minis/popit.js?v=20261029205106"></script>
-<script src="js/minis/pin.js?v=20261029205106"></script>
-<script src="js/minis/memory.js?v=20261029205106"></script>
-<script src="js/minis/mole.js?v=20261029205106"></script>
-<script src="js/minis/sudoku4.js?v=20261029205106"></script>
-<script src="js/minis/watersort.js?v=20261029205106"></script>
-<script src="js/minis/ppo.js?v=20261029205106"></script>
-<script src="js/levels.js?v=20261029205106"></script>
+<script>const BUILD = '20261125234443';</script>
+<script src="js/core.js?v=20261125234443"></script>
+<script src="js/ava.js?v=20261125234443"></script>
+<script src="js/games/spike.js?v=20261125234443"></script>
+<script src="js/games/stack.js?v=20261125234443"></script>
+<script src="js/games/knife.js?v=20261125234443"></script>
+<script src="js/games/zigzag.js?v=20261125234443"></script>
+<script src="js/games/colorswitch.js?v=20261125234443"></script>
+<script src="js/games/flappy.js?v=20261125234443"></script>
+<script src="js/games/timber.js?v=20261125234443"></script>
+<script src="js/games/foodhunt.js?v=20261125234443"></script>
+<script src="js/games/avawalk.js?v=20261125234443"></script>
+<script src="js/games/avasniff.js?v=20261125234443"></script>
+<script src="js/games/avamerge.js?v=20261125234443"></script>
+<script src="js/games/bolts.js?v=20261125234443"></script>
+<script src="js/games/piano.js?v=20261125234443"></script>
+<script src="js/games/bakery.js?v=20261125234443"></script>
+<script src="js/games/paint.js?v=20261125234443"></script>
+<script src="js/minis/popit.js?v=20261125234443"></script>
+<script src="js/minis/pin.js?v=20261125234443"></script>
+<script src="js/minis/memory.js?v=20261125234443"></script>
+<script src="js/minis/mole.js?v=20261125234443"></script>
+<script src="js/minis/sudoku4.js?v=20261125234443"></script>
+<script src="js/minis/watersort.js?v=20261125234443"></script>
+<script src="js/minis/ppo.js?v=20261125234443"></script>
+<script src="js/levels.js?v=20261125234443"></script>
 </body>
 </html>
