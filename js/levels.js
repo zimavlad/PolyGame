@@ -213,20 +213,42 @@ function openMap() {
 $('mapBack').addEventListener('click', () => goMenu());
 
 /* ================= library ================= */
-function tile(icoColor, icoText, title, sub, onClick) {
+// game icons: each module's own icon() drawn once into a small canvas, falling back to the first letter
+const ICONS = {};
+function iconFor(d) {
+  if (ICONS[d.id]) return ICONS[d.id];
+  if (typeof d.icon !== 'function') return null;
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 96;
+    const x = c.getContext('2d');
+    let ok = true;
+    PG.withCtx(x, () => d.icon(x, 48, 50, 30)); // the shared helpers draw on the icon canvas meanwhile
+    // an empty canvas means the art was still loading
+    const px = x.getImageData(0, 0, 96, 96).data; ok = false; for (let i = 3; i < px.length; i += 16) if (px[i]) { ok = true; break; }
+    if (!ok) return null;
+    return (ICONS[d.id] = c.toDataURL());
+  } catch (e) { return null; }
+}
+const NEW_GAMES = ['avawalk', 'avasniff', 'avamerge', 'piano', 'bakery', 'bolts', 'paint'];
+function tile(icoColor, icoText, title, sub, onClick, img, isNew) {
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'tile';
-  b.innerHTML = `<span class="ico" style="--c:${icoColor}">${icoText}</span><b></b><span></span>`;
-  b.querySelector('b').textContent = title; b.querySelector('span:last-child').textContent = sub;
+  b.innerHTML = `<span class="ico${img ? ' pic' : ''}" style="--c:${icoColor}"></span><b></b><span></span>${isNew ? '<em class="new">НОВЕ</em>' : ''}`;
+  const ico = b.querySelector('.ico');
+  if (img) { const im = document.createElement('img'); im.src = img; im.alt = ''; ico.appendChild(im); } else ico.textContent = icoText;
+  b.querySelector('b').textContent = title; b.querySelector('span:not(.ico)').textContent = sub;
   b.addEventListener('click', onClick);
   return b;
 }
 function openLibrary() {
   if (PG.updateReady && PG.applyUpdate()) return;
-  const A = $('libArcade'), M = $('libMinis');
-  A.innerHTML = ''; M.innerHTML = '';
+  const A = $('libArcade'), M = $('libMinis'), N = $('libNew');
+  A.innerHTML = ''; M.innerHTML = ''; N.innerHTML = '';
+  const seen = store.get('polygame.played', {}) || {};
   for (const d of PG.arcade.list()) {
-    A.appendChild(tile(d.accent || '#7765EE', d.title[0], d.title, `${d.family || 'Аркада'} · рівень ${PG.arcade.level(d.id)}`, () => playSolo(d.id)));
+    const isNew = NEW_GAMES.includes(d.id);
+    const t = tile(d.accent || '#7765EE', d.title[0], d.title, `${d.family || 'Аркада'} · рівень ${PG.arcade.level(d.id)}`, () => { seen[d.id] = 1; store.set('polygame.played', seen); playSolo(d.id); }, iconFor(d), isNew && !seen[d.id]);
+    (isNew ? N : A).appendChild(t);
   }
   for (const d of PG.ads.list()) {
     M.appendChild(tile('#F5B12E', d.title[0], d.title, d.hook || '', () => playMini(d.id)));
@@ -252,7 +274,7 @@ function refreshMenu() {
   const p = prog();
   $('pathInfo').textContent = `Рівень ${p.unlocked} · ★ ${totalStars(p)}`;
   $('endlessInfo').textContent = PG.best ? `Рекорд ${PG.best}` : 'Аркада після кожних кількох ліній';
-  $('libInfo').textContent = `${PG.arcade.size()} аркад і ${PG.ads.size()} міні-ігор`;
+  $('libInfo').textContent = `${PG.arcade.size() + PG.ads.size()} ігор · нові ігри з Авою`;
   const m = String(PG.BUILD).match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
   if (m) {
     const d = new Date(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5])), two = n => String(n).padStart(2, '0');
@@ -278,6 +300,36 @@ $('restart').addEventListener('click', () => {
   startEndless();
 });
 
+/* ================= BIG UPDATE pop-up ================= */
+const UPDATE_KEY = 'big-ava-1';
+function showUpdate() {
+  const el = $('update'); if (!el) return;
+  const conf = $('updConf'); conf.innerHTML = '';
+  const cols = ['#F2615E', '#F5B12E', '#22B59B', '#7765EE', '#3E9BF0', '#F47FB0'];
+  for (let i = 0; i < 46; i++) {
+    const c = document.createElement('i');
+    c.style.cssText = `left:${Math.random() * 100}%;--c:${cols[i % cols.length]};--t:${(3 + Math.random() * 3).toFixed(2)}s;--d:${(-Math.random() * 5).toFixed(2)}s;transform:rotate(${Math.random() * 360}deg)`;
+    if (i % 3 === 0) c.style.borderRadius = '50%';
+    conf.appendChild(c);
+  }
+  el.hidden = false;
+  PG.log('update_show', { key: UPDATE_KEY });
+}
+$('updGo').addEventListener('click', () => {
+  store.set('polygame.update', UPDATE_KEY);
+  $('update').hidden = true;
+  PG.sfx.win(); PG.buzz(PG.HAP.success);
+  PG.log('update_go', { key: UPDATE_KEY });
+  openLibrary();
+  requestAnimationFrame(() => { const n = $('libNew'); if (n) n.scrollIntoView({ block: 'start' }); });
+});
+// tapping Ava in the menu makes her hop and bark
+$('menuAva').addEventListener('click', e => {
+  const im = e.currentTarget; im.classList.remove('hop'); void im.offsetWidth; im.classList.add('hop');
+  if (PG.tone) { PG.tone(430, 0.09, 'square', 0.05, 0, 0.55); PG.tone(390, 0.11, 'square', 0.05, 0.13, 0.5); }
+  PG.buzz(PG.HAP.double);
+});
+
 /* ================= boot ================= */
 PG.hooks.boot = () => {
   refreshMenu();
@@ -296,6 +348,7 @@ PG.hooks.boot = () => {
   if (q.get('lvl')) { startLevel(Math.max(1, Number(q.get('lvl')) || 1)); return; }
   if (q.has('endless')) { startEndless(); return; }
   showOverlay('menu');
+  if (store.get('polygame.update', '') !== UPDATE_KEY || q.has('update')) setTimeout(showUpdate, 350);
 };
 PG.hooks.goalText = g => goalText(g);
 PG.levels = { levelDef, startLevel, openMap, openLibrary, goMenu };

@@ -6,7 +6,7 @@
 
 /* ================= setup ================= */
 const cv = document.getElementById('game');
-const ctx = cv.getContext('2d');
+let ctx = cv.getContext('2d'); // let: drawing helpers can be pointed at another canvas by withCtx()
 const $ = id => document.getElementById(id);
 
 // Palette mirrors the CSS tokens.
@@ -1183,6 +1183,8 @@ function reward(o = {}) {
 }
 
 /* ================= drawing helpers ================= */
+// run fn with every drawing helper (rrect, circle, txt, dot...) aimed at another 2D context, e.g. for menu icons
+function withCtx(c, fn) { const keep = ctx; ctx = c; try { return fn(); } finally { ctx = keep; } }
 function circle(x, y, r) { ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, Math.PI * 2); }
 function rrect(x, y, w, h, r) {
   r = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -1742,7 +1744,7 @@ window.PG = {
   get arena() { return L.arena; }, get layout() { return L; },
   PAL, INK, SOFT, DIM, CARD, FIELD, SPIKE, GOOD, BAD, FD, FB, REDUCED, MAX_E, BUILD,
   clamp, lerp, rand, randi, pick, shuffle, easeOutBack, easeOutCubic, easeInOut, rgba,
-  circle, rrect, txt, dot, digit, bolt, wrapText, drawGameIcon,
+  circle, rrect, txt, dot, digit, bolt, wrapText, drawGameIcon, withCtx,
   sfx, tone, buzz, HAP, burst, floatText, shake, confetti, reward,
   log: (type, data) => LOG.ev(type, data),
   arcade: ARC, ads: ADS,

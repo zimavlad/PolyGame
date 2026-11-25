@@ -21,9 +21,26 @@
     { name: 'Роли', rows: ['..kkkkkk..', '.kkcccckk.', 'kkcccccckk', 'kccooggcck', 'kccoooocck', 'kccoooocck', 'kccggoocck', 'kkcccccckk', '.kkcccckk.', '..kkkkkk..'] },
     { name: 'Морозиво', rows: ['....r....', '...ppp...', '..ppppp..', '.ppvppsp.', '.pspppvp.', '..ppppp..', '..yyyyy..', '..ybyby..', '...yyy...', '...yby...', '....y....'] },
     { name: 'Капкейк', rows: ['.....r....', '...pppp...', '..pppspp..', '.ppsppppp.', '.pppppspp.', 'pppppppppp', '.bybybyby.', '.bybybyby.', '..bybyby..', '..bybyby..', '..yyyyyy..'] },
-    { name: 'Бургер', rows: ['..oooooo..', '.oocoocoo.', 'oooooooooo', 'gggggggggg', 'rrrrrrrrrr', 'bbbbbbbbbb', 'yyyyyyyyyy', '.oooooooo.', '..oooooo..'] }
+    { name: 'Бургер', rows: ['..oooooo..', '.oocoocoo.', 'oooooooooo', 'gggggggggg', 'rrrrrrrrrr', 'bbbbbbbbbb', 'yyyyyyyyyy', '.oooooooo.', '..oooooo..'] },
+    // the big update: more snacks, with a big 'boss' dish every tenth level
+    { name: 'Банан', rows: ['........yb', '.......yy.', '......yyy.', '.....yyyy.', '...yyyyy..', 'yyyyyyy...', '.yyyyy....', '..bb......'] },
+    { name: 'Вишні', rows: ['.....gg...', '....g..g..', '...g....g.', '..g.....g.', '.rrr...rrr', 'rrcrr.rrcr', 'rrrrr.rrrr', '.rrr...rr.'] },
+    { name: 'Печиво', rows: ['...bbbb...', '.bbbkbbbb.', '.bkbbbbkb.', 'bbbbbkbbbb', 'bbkbbbbbkb', 'bbbbkbbbbb', '.bbbbbkbb.', '.bkbbbbbb.', '...bbbb...'] },
+    { name: 'Морквина', rows: ['...g.g....', '....gg.g..', '.....gg...', '....ooo...', '...oooo...', '...ooo....', '..oooo....', '..ooo.....', '.ooo......', '.oo.......'] },
+    { name: 'Хот-дог', rows: ['..oooooooo..', '.oooooooooo.', 'rrrrrrrrrrrr', 'ryryryryryry', 'rrrrrrrrrrrr', '.oooooooooo.', '..oooooooo..'] },
+    { name: 'Ананас', rows: ['...g.g.g...', '....ggg....', '...ggggg...', '....yyy....', '..yybyyby..', '..ybyybyy..', '..yyybyyb..', '..ybyyybyy.', '..yyybyyy..', '...yyyyy...'] },
+    { name: 'Груша', rows: ['....b.....', '....bg....', '...ggg....', '...gggg...', '..gggggg..', '.gggggggg.', '.gyggggggg', '.gggggggg.', '..gggggg..'] },
+    { name: 'Виноград', rows: ['....bg....', '...vvvv...', '..vvsvvv..', '.vvvvvsvv.', '..vsvvvv..', '..vvvvsv..', '...vvvv...', '....vv....'] },
+    { name: 'Цукерка', rows: ['p.........p', 'pp.ppppp.pp', 'ppppcpppppp', 'pppppcppppp', 'pp.ppppp.pp', 'p.........p'] },
+    { name: 'Яєчня', rows: ['...cccc....', '.cccccccc..', 'cccccccccc.', 'cccyyyyccc.', 'ccyyyyyyccc', 'ccyyyyyyccc', '.ccyyyyccc.', '..cccccccc.', '....cccc...'] },
+    { name: 'Лимонад', rows: ['..s.......', '.cssssss..', '.ssssssss.', '.syyyyyss.', '.syyyyyys.', '.syyyyyys.', '.syyryyys.', '.syyyyyys.', '..ssssss..'] },
+    { name: 'Кавунчик-морозиво', rows: ['..rrrrrr..', '.rrkrrkrr.', '.rrrrrrrr.', '.rrkrrrkr.', '.gggggggg.', '....bb....', '....bb....'] },
+    { name: 'Святковий торт', boss: true, rows: ['...y..y..y...', '...r..r..r...', '..ppppppppp..', '.pcpcpcpcpcp.', '.ppppppppppp.', '.bbbbbbbbbbb.', '.ccccccccccc.', '.bbbbbbbbbbb.', '.ppcppcppcpp.', '.bbbbbbbbbbb.', 'sssssssssssss'] },
+    { name: 'Велика піца', boss: true, rows: ['...ooooooo...', '.ooyyyyyyyoo.', '.oyrryyygyyo.', 'oyyrryyyyrryo', 'oyyyyygyyrryo', 'oyrryyyyyyyyo', 'oyrryyyrryyyo', 'oyyyyyyrrygyo', '.oyygyyyyyyo.', '.ooyyyrryyoo.', '...ooooooo...'] }
   ];
-  const artOf = lv => ARTS[(Math.max(1, lv) - 1) % ARTS.length];
+  // every tenth level is a big 'boss' dish; otherwise the snacks cycle, the nine classics first
+  const REG = ARTS.filter(a => !a.boss), BOSS = ARTS.filter(a => a.boss);
+  const artOf = lv => { lv = Math.max(1, lv); if (lv % 10 === 0) return BOSS[(lv / 10 - 1) % BOSS.length]; return lv <= 9 ? REG[lv - 1] : REG[(lv - 1 - Math.floor(lv / 10)) % REG.length]; };
   const sizeOf = art => art.rows.join('').replace(/\./g, '').length;
 
   /* ---- the rules, shared by the generator, the solver and the live game ---- */
@@ -160,6 +177,7 @@
     accent: ACCENT,
     howto: ['Тапни мурах: вони з’їдять свій колір', 'Хто не доїв, чекає в слоті'],
     goal: lv => ({ count: sizeOf(artOf(lv)), unit: 'шматочків' }),
+    twist: lv => { const a = artOf(lv); if (a.boss) return `Бос-страва: ${a.name}!`; if (lv === 41) return 'Нове: голодніші загони'; if (lv === 71) return 'Нове: п\'ять черг мурах'; return ARTS.indexOf(a) >= 9 ? `Страва: ${a.name}` : ''; },
     icon(ctx, x, y, r) {
       const s = r * 0.42;
       [['r', -1, -1], ['r', 0, -1], ['g', -1, 0], ['r', 0, 0]].forEach(([ch, i, j]) => block(ctx, x - r * 0.72 + (i + 1) * s, y - r * 0.62 + (j + 1) * s, s, ch));
@@ -172,13 +190,13 @@
       // that need two laps, and fewer slots. Every layout is checked by the solver before it is used.
       // Simulated, 200 rounds a level: a player tapping at random wins ~100% up to level 3, 70-95% at 4-9 and
       // 35-100% later (the burger and the cupcake are the hard ones); a careful player wins them all.
-      const tier = lv <= 1 ? 0 : lv <= 2 ? 1 : lv <= 5 ? 2 : lv <= 9 ? 3 : 4;
+      const tier = lv <= 1 ? 0 : lv <= 2 ? 1 : lv <= 5 ? 2 : lv <= 9 ? 3 : lv <= 40 ? 4 : lv <= 70 ? 5 : 6;
       const D = {
-        queues: [2, 2, 3, 4, 4][tier],
-        slots: [5, 5, 4, 4, 3][tier],
-        chunk: [[12, 18], [10, 16], [10, 18], [12, 22], [14, 24]][tier], // a squad's appetite, in blocks
-        swaps: [0, 1, 3, 3, 4][tier],          // squads moved ahead of their turn
-        merges: [0, 0, 3, 4, 6][tier],         // squads too hungry for one lap
+        queues: [2, 2, 3, 4, 4, 4, 5][tier],
+        slots: [5, 5, 4, 4, 3, 3, 3][tier] + (art.boss ? 1 : 0),
+        chunk: [[12, 18], [10, 16], [10, 18], [12, 22], [14, 24], [14, 26], [16, 28]][tier], // a squad's appetite, in blocks
+        swaps: [0, 1, 3, 3, 4, 6, 7][tier],          // squads moved ahead of their turn
+        merges: [0, 0, 3, 4, 6, 8, 9][tier],         // squads too hungry for one lap
         mirror: Math.floor((lv - 1) / ARTS.length) % 2 === 1,
         lapSec: lv <= 2 ? 4.2 : 3.8,          // one lap of the snack, whatever its size
         hint: lv <= 2                           // after a pause, point at a squad that can eat right now
