@@ -61,6 +61,23 @@ function bone(ctx, x, y, s, ang = 0, col = '#F4EADB') {
   for (const [bx, by] of [[-8, -3], [-8, 3], [8, -3], [8, 3]]) { ctx.moveTo(bx + 3.4, by); ctx.arc(bx, by, 3.4, 0, Math.PI * 2); }
   ctx.fill(); ctx.restore();
 }
+// generic lazy image cache for other generated art (img/walk, img/treats, ...)
+const SPR = {};
+function sprite(path) {
+  let im = SPR[path];
+  if (!im) { im = SPR[path] = new Image(); im.decoding = 'async'; im.src = `${path}?v=${V}`; }
+  return im.complete && im.naturalWidth ? im : null;
+}
+// draw a sprite centred on (x, y) with the given height (width keeps the aspect); returns false while loading
+function drawSprite(ctx, path, x, y, h, o = {}) {
+  const im = sprite(path); if (!im) return false;
+  const w = im.naturalWidth * h / im.naturalHeight;
+  ctx.save(); ctx.translate(x, y); if (o.rot) ctx.rotate(o.rot); ctx.scale((o.flip ? -1 : 1) * (o.sx || 1), o.sy || 1);
+  if (o.alpha != null) ctx.globalAlpha *= o.alpha;
+  ctx.drawImage(im, -w / 2, -h * (o.ay != null ? o.ay : 0.5), w, h); ctx.restore();
+  return true;
+}
 preload();
 PG.ava = { draw, bone, img, preload, poses: Object.keys(META) };
+PG.sprite = sprite; PG.drawSprite = drawSprite;
 })();
