@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate or edit an image with Gemini image models (Nano Banana) using reference images.
 
-usage: gen_image.py --out out.png --prompt "..." [--ref a.jpg --ref b.webp ...] [--model gemini-3-pro-image] [--aspect 1:1]
+usage: gen_image.py --out out.png --prompt "..." [--ref a.jpg --ref b.webp ...] [--model gemini-3-pro-image] [--aspect 1:1] [--size 2K]
 The API key is read from GEMINI_API_KEY or from the file named by GEMINI_API_KEY_FILE. Never commit keys.
 """
 import argparse, base64, json, mimetypes, os, sys, urllib.request
@@ -13,6 +13,7 @@ def main():
     ap.add_argument('--ref', action='append', default=[])
     ap.add_argument('--model', default='gemini-3-pro-image')
     ap.add_argument('--aspect', default='1:1')
+    ap.add_argument('--size', default=None, help='1K, 2K or 4K (pro models)')
     a = ap.parse_args()
     key = os.environ.get('GEMINI_API_KEY') or open(os.environ['GEMINI_API_KEY_FILE']).read().strip()
     parts = []
@@ -22,7 +23,7 @@ def main():
         parts.append({'inline_data': {'mime_type': mt, 'data': base64.b64encode(open(r, 'rb').read()).decode()}})
     parts.append({'text': a.prompt})
     body = {'contents': [{'role': 'user', 'parts': parts}],
-            'generationConfig': {'responseModalities': ['IMAGE', 'TEXT'], 'imageConfig': {'aspectRatio': a.aspect}}}
+            'generationConfig': {'responseModalities': ['IMAGE', 'TEXT'], 'imageConfig': dict({'aspectRatio': a.aspect}, **({'imageSize': a.size} if a.size else {}))}}
     req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{a.model}:generateContent',
                                  data=json.dumps(body).encode(), headers={'Content-Type': 'application/json', 'x-goog-api-key': key})
     try:
