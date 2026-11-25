@@ -44,29 +44,30 @@
     return Array.from({ length: colors }, (_, c) => [c, c, (c + 1) % colors, (c + 1) % colors]).concat(Array.from({ length: empty }, () => []));
   }
 
-  function nut(ctx, x, y, w, col, rot, top) {
-    const h = w * 0.34, rx = w / 2;
-    // hex prism seen from the front: the six faces collapse to three visible bands, shifting with rotation
-    const ph = ((rot % (Math.PI / 3)) + Math.PI / 3) % (Math.PI / 3);
-    const edges = []; for (let i = 0; i < 6; i++) { const a = ph + i * Math.PI / 3; if (Math.sin(a) > -0.01) edges.push(Math.cos(a)); }
-    edges.sort((a, b) => a - b);
-    const xs = [-1].concat(edges.filter(e => e > -0.999 && e < 0.999)).concat([1]);
-    for (let i = 0; i < xs.length - 1; i++) {
-      const mid = (xs[i] + xs[i + 1]) / 2, light = 0.75 + 0.45 * (1 - Math.abs(mid + 0.35));
-      ctx.fillStyle = shade(col, light);
-      ctx.fillRect(x + xs[i] * rx, y - h / 2, (xs[i + 1] - xs[i]) * rx + 0.6, h);
-    }
-    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x - rx, y - h / 2, w, h * 0.18);
-    ctx.fillStyle = 'rgba(0,0,0,0.14)'; ctx.fillRect(x - rx, y + h / 2 - h * 0.16, w, h * 0.16);
-    ctx.strokeStyle = shade(col, 0.6); ctx.lineWidth = 1; ctx.strokeRect(x - rx, y - h / 2, w, h);
-    if (top) { // the hex top face with the threaded hole, seen from slightly above
-      const ry = h * 0.42, cy = y - h / 2;
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) { const a = ph + i * Math.PI / 3; const px = x + Math.cos(a) * rx, py = cy + Math.sin(a) * ry; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
-      ctx.closePath(); ctx.fillStyle = shade(col, 1.18); ctx.fill(); ctx.strokeStyle = shade(col, 0.75); ctx.stroke();
-      ctx.fillStyle = 'rgba(40,46,60,0.55)'; ctx.beginPath(); ctx.ellipse(x, cy, rx * 0.32, ry * 0.32, 0, 0, Math.PI * 2); ctx.fill();
-    }
+  // Art: one white glossy nut tinted per colour (shading kept), a chrome bolt, a wooden shelf, a soft workshop wall.
+  const NUT_AR = 213 / 256, SQUASH = 0.86, HOLE_Y = 0.27; // nut picture height/width, flattening, hole centre (fraction of height)
+  const STEP = 0.5;                                        // a stacked nut shows this share of its picture height
+  const tinted = {};
+  function nutImg(ci) {
+    if (tinted[ci]) return tinted[ci];
+    const im = PG.sprite('img/bolts/nut.webp'); if (!im) return null;
+    const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const x = c.getContext('2d');
+    x.drawImage(im, 0, 0);
+    x.globalCompositeOperation = 'multiply'; x.fillStyle = COLS[ci]; x.fillRect(0, 0, c.width, c.height);
+    x.globalCompositeOperation = 'color'; x.globalAlpha = 0.35; x.fillRect(0, 0, c.width, c.height); // richer colour
+    x.globalCompositeOperation = 'screen'; x.globalAlpha = 0.18; x.drawImage(im, 0, 0); // bring the gloss back
+    x.globalCompositeOperation = 'destination-in'; x.globalAlpha = 1; x.drawImage(im, 0, 0);
+    return (tinted[ci] = c);
   }
+  // draws a nut whose bottom edge sits at y; wob squeezes it a little while it spins on the thread
+  function nut(ctx, x, y, w, ci, wob) {
+    const im = nutImg(ci), h = w * NUT_AR * SQUASH, k = 1 - Math.abs(Math.sin(wob || 0)) * 0.05;
+    if (!im) { ctx.fillStyle = COLS[ci]; PG.rrect(x - w / 2, y - h, w, h, 6); ctx.fill(); return; }
+    ctx.drawImage(im, x - w * k / 2, y - h, w * k, h);
+  }
+  const nutStep = w => w * NUT_AR * SQUASH * STEP;
+  function icon(ctx, x, y, r) { nut(ctx, x, y + r * 0.85, r * 1.5, 0); nut(ctx, x, y + r * 0.85 - nutStep(r * 1.5), r * 1.5, 2); nut(ctx, x, y + r * 0.85 - nutStep(r * 1.5) * 2, r * 1.5, 3); }
 
   PG.arcade.register({
     id: 'bolts',
@@ -77,26 +78,28 @@
     howto: ['Тапни болт — гайки підкрутяться вгору', 'Тапни інший — перекрутяться туди, якщо колір той самий'],
     goal: lv => ({ count: spec(lv).colors, unit: 'болтів' }),
     twist: lv => ({ 1: 'Розминка: 3 кольори', 2: 'Нове: 4 кольори', 3: '5 кольорів', 4: 'Нове: лише один порожній болт', 5: '7 кольорів, два порожні', 6: '8 кольорів' }[lv] || (spec(lv).empty === 1 ? 'Один порожній болт' : 'Вісім кольорів')),
-    icon(ctx, x, y, r) { nut(ctx, x, y + r * 0.25, r * 1.3, COLS[0], 0.3); nut(ctx, x, y - r * 0.2, r * 1.3, COLS[2], 0.6, true); },
+    icon,
     create(level) {
       const st = deal(level), n = st.length;
       const s = { t: 0, st, sel: -1, anim: null, done: new Set(), spin: st.map(b => b.map(() => Math.random() * 6)), moves: 0, shakeB: -1, shakeT: -9 };
       const inst = { progress: 0, over: null, stats: { level, moves: 0 } };
       inst._s = s;
       const lay = A => {
-        const rows = n > 5 ? 2 : 1, perRow = Math.ceil(n / rows), slot = A.w / (perRow + 0.3);
-        const nw = Math.min(slot * 0.86, 84), nh = nw * 0.34, rodH = nh * (CAP + 1.6);
+        const rows = n > 4 ? 2 : 1, perRow = Math.ceil(n / rows), slot = A.w / (perRow + 0.2);
+        const rowH = (A.h - 70) / rows;
+        const nw = Math.min(slot * 0.88, 96, rowH / (rows === 1 ? 3.6 : 2.9)), st = nutStep(nw), rodH = nw * 2.55;
         const pos = []; for (let i = 0; i < n; i++) { const r = Math.floor(i / perRow), c = i % perRow, cnt = r === rows - 1 ? n - perRow * (rows - 1) : perRow;
-          pos.push({ x: A.x + A.w / 2 + (c - (cnt - 1) / 2) * slot, base: A.y + A.h * (rows === 1 ? 0.72 : r === 0 ? 0.5 : 0.88) }); }
-        return { pos, nw, nh, rodH };
+          pos.push({ x: A.x + A.w / 2 + (c - (cnt - 1) / 2) * slot, base: rows === 1 ? A.y + 60 + rowH * 0.74 : A.y + 60 + rowH * (r + 1) - rowH * 0.12, row: r, cnt }); }
+        return { pos, nw, st, rodH, slot, rows, perRow };
       };
+      inst._lay = lay; // for automated checks
       function checkDone(i) {
         const b = s.st[i];
         if (b.length === CAP && b.every(c => c === b[0]) && !s.done.has(i)) {
           s.done.add(i); inst.progress++;
           const A = PG.arena, g = lay(A), p = g.pos[i];
           PG.reward({ score: 50, energy: 1, x: p.x, y: p.base - g.rodH });
-          PG.burst(p.x, p.base - g.rodH * 0.6, COLS[b[0]], 16, 200); PG.sfx.loop(); PG.buzz(PG.HAP.success);
+          PG.burst(p.x, p.base - g.st * 3, COLS[b[0]], 18, 220); s.doneAt = s.doneAt || {}; s.doneAt[i] = s.t; PG.sfx.loop(); PG.buzz(PG.HAP.success);
         }
       }
       function stuck() {
@@ -108,7 +111,7 @@
           if (s.anim) return;
           const A = PG.arena, g = lay(A);
           let hit = -1, bd = 1e9;
-          g.pos.forEach((p, i) => { const d = Math.abs(x - p.x); if (d < g.nw * 0.75 && y > p.base - g.rodH - g.nh * 3 && y < p.base + g.nh * 2 && d < bd) { bd = d; hit = i; } });
+          g.pos.forEach((p, i) => { const d = Math.abs(x - p.x); if (d < g.slot * 0.5 && y > p.base - g.rodH - g.st * 2 && y < p.base + g.st * 2 && d < bd) { bd = d; hit = i; } });
           if (hit < 0) { s.sel = -1; return; }
           if (s.sel < 0) {
             if (!s.st[hit].length || s.done.has(hit)) { s.shakeB = hit; s.shakeT = s.t; PG.sfx.bad(); return; }
@@ -134,39 +137,61 @@
           }
         },
         draw(ctx, A) {
-          const g0 = ctx.createLinearGradient(0, A.y, 0, A.y + A.h); g0.addColorStop(0, '#EAF0FF'); g0.addColorStop(1, '#C9D6F2');
-          ctx.fillStyle = g0; ctx.fillRect(A.x, A.y, A.w, A.h);
-          txt(String(inst.progress), A.x + A.w / 2, A.y + A.h * 0.16, Math.min(90, A.w * 0.25), 'rgba(255,255,255,0.8)', { font: FD });
-          const g = lay(A);
+          const bg = PG.sprite('img/bolts/bg.webp');
+          if (bg) { const k = Math.max(A.w / bg.naturalWidth, A.h / bg.naturalHeight); ctx.drawImage(bg, A.x + (A.w - bg.naturalWidth * k) / 2, A.y + (A.h - bg.naturalHeight * k) / 2, bg.naturalWidth * k, bg.naturalHeight * k); ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(A.x, A.y, A.w, A.h); }
+          else { ctx.fillStyle = '#DCE6F7'; ctx.fillRect(A.x, A.y, A.w, A.h); }
+          txt(String(inst.progress), A.x + A.w / 2, A.y + 34, 40, 'rgba(60,80,140,0.35)', { font: FD });
+          const g = lay(A), boltIm = PG.sprite('img/bolts/bolt.webp'), board = PG.sprite('img/bolts/board.webp');
+          // shelves, one per row
+          for (let r = 0; r < g.rows; r++) {
+            const p = g.pos.find(q => q.row === r); if (!p) continue;
+            const w = Math.min(A.w - 12, g.slot * p.cnt + 20), h = board ? w * board.naturalHeight / board.naturalWidth : 20;
+            if (board) ctx.drawImage(board, A.x + (A.w - w) / 2, p.base - h * 0.42, w, h); else { ctx.fillStyle = '#C08A5B'; ctx.fillRect(A.x + (A.w - w) / 2, p.base, w, 16); }
+          }
+          const boltW = boltIm ? g.nw * 0.3 / 78 * boltIm.naturalWidth : g.nw * 0.3, boltH = boltIm ? boltW * boltIm.naturalHeight / boltIm.naturalWidth : g.rodH;
+          const drawBolt = (x, base, clipY) => {
+            ctx.save();
+            if (clipY != null) { ctx.beginPath(); ctx.rect(x - boltW, base - boltH - 10, boltW * 2, clipY - (base - boltH - 10)); ctx.clip(); }
+            if (boltIm) ctx.drawImage(boltIm, x - boltW / 2, base - boltH - g.st * 0.3, boltW, boltH);
+            else { ctx.fillStyle = '#A9B3C4'; ctx.fillRect(x - boltW / 2, base - boltH, boltW, boltH); }
+            ctx.restore();
+          };
           g.pos.forEach((p, i) => {
             const sh = i === s.shakeB && s.t - s.shakeT < 0.35 ? Math.sin((s.t - s.shakeT) * 60) * 4 : 0, x = p.x + sh;
-            // wooden base and steel rod with thread
-            ctx.fillStyle = '#B07A4C'; PG.rrect(x - g.nw * 0.75, p.base, g.nw * 1.5, g.nh * 0.9, 6); ctx.fill();
-            ctx.fillStyle = '#8E5E37'; ctx.fillRect(x - g.nw * 0.75, p.base + g.nh * 0.55, g.nw * 1.5, g.nh * 0.35);
-            const rw = g.nw * 0.2, top = p.base - g.rodH;
-            const rg = ctx.createLinearGradient(x - rw / 2, 0, x + rw / 2, 0); rg.addColorStop(0, '#8E99AE'); rg.addColorStop(0.4, '#F2F5FA'); rg.addColorStop(1, '#7A8599');
-            ctx.fillStyle = rg; ctx.fillRect(x - rw / 2, top, rw, g.rodH);
-            ctx.strokeStyle = 'rgba(90,100,120,0.45)'; ctx.lineWidth = 1;
-            for (let y = top + 4; y < p.base; y += 5) { ctx.beginPath(); ctx.moveTo(x - rw / 2, y); ctx.lineTo(x + rw / 2, y + 2); ctx.stroke(); }
-            // bolt head on top, golden when the bolt is complete
-            ctx.fillStyle = s.done.has(i) ? '#F5B12E' : '#9AA4B8'; PG.rrect(x - rw * 1.1, top - g.nh * 0.5, rw * 2.2, g.nh * 0.55, 4); ctx.fill();
-            if (s.done.has(i)) { const k = 0.5 + 0.5 * Math.sin(s.t * 5 + i); ctx.fillStyle = rgba('#FFFFFF', k); ctx.beginPath(); ctx.arc(x + rw, top - g.nh * 0.4, 3, 0, Math.PI * 2); ctx.fill(); }
-            // nuts (the moving ones are drawn by the animation)
             const b = s.st[i];
             let count = b.length; if (s.anim && s.anim.to === i) count -= s.anim.k;
+            const sel = i === s.sel ? topRun(b) : 0;
+            // the bolt behind the nuts…
+            drawBolt(x, p.base, null);
+            // glow under the selected bolt
+            if (sel) { ctx.fillStyle = rgba('#FFFFFF', 0.45 + 0.2 * Math.sin(s.t * 8)); ctx.beginPath(); ctx.ellipse(x, p.base, g.nw * 0.62, g.st * 0.45, 0, 0, Math.PI * 2); ctx.fill(); }
+            let topY = p.base;
             for (let m = 0; m < count; m++) {
-              let lift = 0; if (i === s.sel && m >= b.length - topRun(b)) lift = g.nh * (1.2 + 0.15 * Math.sin(s.t * 8));
-              const y = p.base - g.nh * (m + 0.5) - lift;
-              nut(ctx, x, y, g.nw, COLS[b[m]], s.spin[i][m] + (lift ? s.t * 6 : 0), m === count - 1);
+              const lifted = sel && m >= b.length - sel;
+              const lift = lifted ? g.st * (1.3 + 0.12 * Math.sin(s.t * 7)) : 0;
+              const y = p.base - m * g.st - lift;
+              nut(ctx, x, y, g.nw, b[m], lifted ? s.t * 9 : 0);
+              topY = y - g.nw * NUT_AR * SQUASH * (1 - HOLE_Y);
+            }
+            // …and the rod again above the top nut, so it looks like it runs through the hole
+            if (count) drawBolt(x, p.base, topY);
+            // a finished bolt: soft glow and a little star
+            if (s.done.has(i)) {
+              const k = s.doneAt && s.doneAt[i] ? Math.min(1, (s.t - s.doneAt[i]) / 0.4) : 1;
+              ctx.save(); ctx.globalAlpha = 0.6 + 0.4 * Math.sin(s.t * 4 + i);
+              const sx = x, sy = p.base - boltH - g.st * 0.3 + boltW * 0.32 - 3 * PG.easeOutBack(k);
+              ctx.fillStyle = '#F5B12E'; ctx.beginPath();
+              for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, r = j % 2 ? 4 : 9; ctx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r); }
+              ctx.closePath(); ctx.fill(); ctx.restore();
             }
           });
           if (s.anim) {
             const a = s.anim, pf = g.pos[a.from], pt = g.pos[a.to], e = easeInOut(Math.min(1, a.t));
             for (let m = 0; m < a.k; m++) {
-              const y0 = pf.base - g.nh * (a.fromH - m - 0.5) - g.nh * 1.2, y1 = pt.base - g.nh * (a.toH + m + 0.5);
-              const arc = Math.min(pf.base, pt.base) - g.rodH - g.nh * (1.5 + m);
+              const y0 = pf.base - (a.fromH - 1 - m) * g.st - g.st * 1.3, y1 = pt.base - (a.toH + m) * g.st;
+              const arc = Math.min(pf.base, pt.base) - boltH - g.st * (0.5 + m);
               const x = lerp(pf.x, pt.x, e), y = e < 0.5 ? lerp(y0, arc, e * 2) : lerp(arc, y1, (e - 0.5) * 2);
-              nut(ctx, x, y, g.nw, COLS[a.col], s.t * 9 + m, m === a.k - 1);
+              nut(ctx, x, y, g.nw, a.col, s.t * 12 + m);
             }
           }
         }
