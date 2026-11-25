@@ -938,7 +938,8 @@ function endArcade() {
   if (done) done(res);
 }
 function pickNextRush() {
-  const ids = ARC.list().map(d => d.id);
+  // calm games (painting, sorting) are too long for a quick break in the endless game
+  const ids = ARC.list().filter(d => d.rush !== false).map(d => d.id);
   if (!ids.length) { G.rush.next = null; return; }
   if (!G.rush.order || !G.rush.order.length) G.rush.order = shuffle(ids.slice());
   G.rush.next = G.rush.order.shift();

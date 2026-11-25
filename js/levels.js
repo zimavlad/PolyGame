@@ -26,7 +26,7 @@ const HAND = [
   { title: 'Велике судоку', sudoku: true, moves: 24, goals: [{ t: 'boxes', n: 1 }, { t: 'lines', n: 2 }], seed: 'sudoku:m3' }
 ];
 function availableArcade() {
-  const all = PG.arcade.list().map(d => d.id);
+  const all = PG.arcade.list().filter(d => d.path !== false).map(d => d.id);
   return ARC_ORDER.filter(id => all.includes(id)).concat(all.filter(id => !ARC_ORDER.includes(id)));
 }
 function seeded(n) { let s = (n * 7919) % 233280; return () => (s = (s * 9301 + 49297) % 233280) / 233280; }
