@@ -47,11 +47,12 @@
     family: 'Музика',
     accent: ACCENT,
     howto: ['Тапай темні плитки знизу вгору', 'Три серця: промах забирає одне'],
-    goal: lv => ({ count: parse(SONGS[(lv - 1) % SONGS.length].notes).length, unit: 'нот' }),
+    goal: lv => ({ count: parse(SONGS[(lv - 1) % SONGS.length].notes).length * 2, unit: 'нот' }),
     twist: lv => { const sg = SONGS[(lv - 1) % SONGS.length]; return `«${sg.name}»${lv > 1 ? ' · швидше' : ''}`; },
     icon(ctx, x, y, r) { for (let i = 0; i < 3; i++) { ctx.fillStyle = i === 1 ? '#27303F' : '#FFFFFF'; ctx.fillRect(x - r + i * r * 0.68, y - r * 0.8, r * 0.6, r * 1.6); } },
     create(level) {
-      const song = SONGS[(level - 1) % SONGS.length], notes = parse(song.notes), ln = lanes(notes);
+      // the tune twice: the second time round it is faster
+      const song = SONGS[(level - 1) % SONGS.length], once = parse(song.notes), notes = once.concat(once), ln = lanes(notes);
       // rows: each note starts at the running sum of eighth lengths; speed in eighths per second
       let acc = 0; const tiles = notes.map((n, i) => { const t = { at: acc, lane: ln[i], n, hit: false }; acc += n.len; return t; });
       const lap = Math.floor((level - 1) / SONGS.length);
@@ -91,7 +92,7 @@
         update(dt, A) {
           s.t += dt; s.glow = Math.max(0, s.glow - dt * 3);
           if (inst.over) return;
-          s.speed = speed0 * (1 + 0.35 * inst.progress / notes.length);
+          s.speed = speed0 * (inst.progress < once.length ? 1 + 0.15 * inst.progress / once.length : 1.3 + 0.2 * (inst.progress - once.length) / once.length);
           s.pos += s.speed * dt;
           const tl = tiles[s.next];
           if (tl && tileY(A, tl) > A.y + A.h + 4) fail(tl.lane, A, 'missed');

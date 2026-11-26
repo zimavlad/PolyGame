@@ -6,7 +6,7 @@
   const { FD, FB, clamp, lerp, randi, shuffle, txt, rgba, easeInOut } = PG;
   const ACCENT = '#5C7CFA';
   const CAP = 4;
-  const COLS = ['#F2615E', '#F5B12E', '#22B59B', '#7765EE', '#3E9BF0', '#F47FB0', '#8BC34A', '#FF8A3D'];
+  const COLS = ['#F2615E', '#F5B12E', '#22B59B', '#7765EE', '#3E9BF0', '#F47FB0', '#8BC34A', '#FF8A3D', '#9AA3B5']; // the last one is a hidden nut
   const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); const f = v => Math.round(clamp(v * k, 0, 255)); return `rgb(${f(n >> 16 & 255)},${f(n >> 8 & 255)},${f(n & 255)})`; };
   // level 1 already has four colours; every third level from 4 leaves only one empty bolt
 const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0), 8), empty: lv >= 4 && lv % 3 === 1 ? 1 : 2 });
@@ -78,11 +78,15 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
     rush: false,
     howto: ['Тапни болт — гайки підкрутяться вгору', 'Тапни інший — перекрутяться туди, якщо колір той самий'],
     goal: lv => ({ count: spec(lv).colors, unit: 'болтів' }),
-    twist: lv => lv === 1 ? 'Розминка: 4 кольори' : spec(lv).empty === 1 ? `Лише один порожній болт · ${spec(lv).colors} кольори` : `${spec(lv).colors} кольорів`,
+    twist: lv => (lv === 1 ? 'Розминка: 4 кольори' : spec(lv).empty === 1 ? `Лише один порожній болт · ${spec(lv).colors} кольори` : `${spec(lv).colors} кольорів`) + (lv === 5 ? ' · нове: сховані гайки' : ''),
     icon,
     create(level) {
       const st = deal(level), n = st.length;
       const s = { t: 0, st, sel: -1, selAt: 0, flights: [], land: [], done: new Set(), doneAt: {}, moves: 0, shakeB: -1, shakeT: -9 };
+      // from level 5 the nuts under the top run are hidden ('?') until they come to the top: you plan with half the picture
+      const hidden = level >= 5;
+      s.seen = st.map(b => b.map((c, m) => !hidden || m >= b.length - topRun(b)));
+      const par = Math.round(spec(level).colors * 3.2 + 2); // moves for three stars
       const inst = { progress: 0, over: null, stats: { level, moves: 0 } };
       inst._s = s;
       const lay = A => {
@@ -117,7 +121,9 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
           if (!canMove(s.st[s.sel], s.st[hit])) { s.shakeB = hit; s.shakeT = s.t; PG.sfx.bad(); PG.buzz(PG.HAP.double); s.sel = -1; return; }
           const k = Math.min(topRun(s.st[s.sel]), CAP - s.st[hit].length), col = s.st[s.sel][s.st[s.sel].length - 1];
           const from = s.sel, fromH = s.st[from].length, toH = s.st[hit].length;
-          for (let m = 0; m < k; m++) s.st[hit].push(s.st[from].pop());
+          for (let m = 0; m < k; m++) { s.st[hit].push(s.st[from].pop()); s.seen[hit].push(true); s.seen[from].pop(); }
+          // whatever is now on top of the source is revealed
+          if (hidden) { const b = s.st[from], run = topRun(b); for (let m = b.length - run; m < b.length; m++) if (!s.seen[from][m]) { s.seen[from][m] = true; s.revealAt = s.t; s.revealB = from; } }
           // each nut flies on its own, a little after the one before: up the thread, over, and screwed down
           for (let m = 0; m < k; m++) s.flights.push({ from, to: hit, col, fromSlot: fromH - 1 - m, toSlot: toH + m, t: -m * 0.09, dur: 0.62, lift0: s.t - s.selAt });
           s.sel = -1; s.moves++; inst.stats.moves++;
@@ -149,6 +155,7 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
               PG.sfx.loop();
             }
             if (inst.progress < spec(level).colors && stuck()) inst.over = { won: false, cause: 'stuck' };
+            if (inst.progress >= spec(level).colors) { inst.stars = s.moves <= par ? 3 : s.moves <= par * 1.35 ? 2 : 1; inst.stats.stars = inst.stars; }
           }
           s.land = s.land.filter(l => s.t - l.t < 0.4);
         },
@@ -174,6 +181,7 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
           if (s.cache && s.cacheKey === key) ctx.drawImage(s.cache, A.x, A.y, A.w, A.h);
           else { ctx.fillStyle = '#DCE6F7'; ctx.fillRect(A.x, A.y, A.w, A.h); }
           txt(String(inst.progress), A.x + A.w / 2, A.y + 34, 40, 'rgba(60,80,140,0.35)', { font: FD });
+          txt(`ходів ${s.moves} · ★★★ до ${par}`, A.x + A.w / 2, A.y + 62, 12, s.moves <= par ? 'rgba(60,80,140,0.7)' : 'rgba(229,72,77,0.8)', { font: FB, weight: 900 });
           const boltW = boltIm ? g.nw * 0.3 / 78 * boltIm.naturalWidth : g.nw * 0.3, boltH = boltIm ? boltW * boltIm.naturalHeight / boltIm.naturalWidth : g.rodH;
           const boltTop = base => base - boltH - g.st * 0.3;
           const drawBolt = (x, base, clipY) => {
@@ -202,7 +210,8 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
               if (doneK < 0.9) y -= Math.max(0, Math.sin((doneK - m * 0.08) * Math.PI / 0.35)) * g.st * 0.5 * (doneK - m * 0.08 > 0 && doneK - m * 0.08 < 0.35 ? 1 : 0);
               const ld = s.land.find(l => l.i === i && l.slot === m), sq = ld ? 1 - Math.sin(Math.min(1, (s.t - ld.t) / 0.25) * Math.PI) * 0.12 : 1;
               ctx.save(); ctx.translate(x, y); ctx.scale(1 / Math.sqrt(sq), sq);
-              nut(ctx, 0, 0, g.nw, b[m], lifted ? s.t * 10 + m : 0);
+              if (s.seen[i][m]) nut(ctx, 0, 0, g.nw, b[m], lifted ? s.t * 10 + m : 0);
+              else { nut(ctx, 0, 0, g.nw, 8, 0); txt('?', 0, -nutH * 0.38, nutH * 0.42, 'rgba(255,255,255,0.9)', { font: FD }); }
               ctx.restore();
               topY = y - nutH * (1 - HOLE_Y);
             }

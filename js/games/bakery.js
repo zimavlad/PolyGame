@@ -65,13 +65,14 @@
     accent: ACCENT,
     howto: ['Обери внизу шар, який потрібен', 'Тапни, коли він їде над тортом'],
     goal: lv => ({ count: Math.min(2 + Math.floor((lv - 1) / 2), 6), unit: 'тортів' }),
-    twist: lv => ({ 1: 'Розминка: повільно, 4 шари', 2: 'Нове: начинки й м\'ята', 3: 'Нове: шоколадний бісквіт', 4: 'Нове: шари чергуються', 5: '6 шарів і швидше' }[lv] || 'Швидше на 10%'),
+    twist: lv => ({ 1: 'Клієнт чекає: встигни зібрати торт', 2: 'Нове: начинки й м\'ята', 3: 'Нове: тарілка їздить', 4: 'Нове: шари чергуються', 5: 'Більше шарів і швидше' }[lv] || 'Швидше, клієнти нетерплячі'),
     icon(ctx, x, y, r) { layer(ctx, 'sponge', x, y + r * 0.6, r * 1.6, r * 0.6, 0); layer(ctx, 'cream', x, y, r * 1.6, r * 0.4, 0); topping(ctx, 'cherry', x, y - r * 0.35, r * 1.6, r * 0.5, 0); },
     create(level) {
       const nLayers = Math.min(5 + Math.floor((level - 1) / 2), 8);
       const speed = Math.min(0.68 + (level - 1) * 0.09, 1.4);
       const tol = Math.max(0.17 - (level - 1) * 0.014, 0.09); // max offset as a fraction of cake width before it falls
-      const s = { t: 0, order: recipe(level, nLayers), cake: [], cur: null, slips: 0, falling: [], shelf: [], doneAt: -9, wobble: 0, beg: 0, hintAt: -9, wrongI: -1 };
+      const patience = Math.max(26 - (level - 1) * 2.5, 11); // seconds a customer waits for one cake
+      const s = { t: 0, order: recipe(level, nLayers), cake: [], cur: null, slips: 0, falling: [], shelf: [], doneAt: -9, wobble: 0, beg: 0, hintAt: -9, wrongI: -1, wait: patience, plate: 0 };
       const inst = { progress: 0, over: null, stats: { level, slips: 0, perfect: 0 } };
       inst._s = s;
       function newShelf() {
@@ -92,7 +93,7 @@
         if (s.slips >= 3) inst.over = { won: false, cause: 'slips' };
       }
       Object.assign(inst, {
-        start() { s.skip = true; },
+        start() { s.skip = true; s.started = true; },
         tap(x, y) {
           const A = PG.arena, g = geo(A);
           if (s.skip) { s.skip = false; return; }
@@ -108,10 +109,10 @@
           // drop the sliding layer
           const off = s.cur.x, kind = s.cur.kind; s.cur = null;
           if (Math.abs(off) > tol + 0.25) { s.falling.push({ kind, x: off, y: 0, vy: 0, rot: 0 }); slip(A, 'Мимо!'); return; }
-          const prev = s.cake.length ? s.cake[s.cake.length - 1].x : 0, x2 = clamp(off, prev - tol, prev + tol);
+          const prev = s.cake.length ? s.cake[s.cake.length - 1].x + s.plate : s.plate, x2 = clamp(off, prev - tol, prev + tol) - s.plate;
           if (Math.abs(off - prev) > tol) { s.falling.push({ kind, x: off, y: 0, vy: 0, rot: 0 }); slip(A, 'Впало!'); return; }
           const perfect = Math.abs(off - prev) < tol * 0.25;
-          s.cake.push({ kind, x: perfect ? prev : x2, at: s.t }); s.wobble = 1;
+          s.cake.push({ kind, x: perfect ? prev - s.plate : x2, at: s.t }); s.wobble = 1;
           PG.sfx.place(); PG.buzz(perfect ? PG.HAP.double : PG.HAP.light);
           if (perfect) { inst.stats.perfect++; PG.reward({ score: 20, x: g.cx, y: g.plateY - 60 }); PG.floatText(g.cx, g.plateY - 90, 'Рівненько!', ACCENT, 16); }
           else PG.reward({ score: 8 });
@@ -123,11 +124,15 @@
         idle(dt) { s.t += dt; },
         update(dt, A) {
           s.t += dt; s.wobble = Math.max(0, s.wobble - dt * 3);
+          // the plate slides slowly from level 3, so a perfect drop has to be timed against it
+          if (level >= 3 && !inst.over) s.plate = Math.sin(s.t * (0.6 + level * 0.06)) * Math.min(0.16, 0.05 + level * 0.02);
+          // the customer's patience runs out: the order is lost (a slip) and a new one comes
+          if (s.doneAt < 0 && !inst.over && s.started) { s.wait -= dt; if (s.wait <= 0) { const A = PG.arena; slip(A, 'Клієнт не дочекався!'); s.cake = []; s.cur = null; s.order = recipe(level, nLayers); newShelf(); s.wait = patience; } }
           if (s.cur) { s.cur.x += s.cur.dir * speed * (1 + inst.progress * 0.05) * dt; if (Math.abs(s.cur.x) > 0.55) { s.cur.dir *= -1; s.cur.x = clamp(s.cur.x, -0.55, 0.55); } }
           s.falling.forEach(f => { f.vy += 1800 * dt; f.y += f.vy * dt; f.rot += dt * 3 * Math.sign(f.x || 1); });
           s.falling = s.falling.filter(f => f.y < 900);
           // next order after the finished cake has been admired
-          if (s.doneAt > 0 && s.t - s.doneAt > 1.2 && !inst.over && inst.progress < Math.min(2 + Math.floor((level - 1) / 2), 6)) { s.doneAt = -9; s.cake = []; s.order = recipe(level, nLayers); newShelf(); }
+          if (s.doneAt > 0 && s.t - s.doneAt > 1.2 && !inst.over && inst.progress < Math.min(2 + Math.floor((level - 1) / 2), 6)) { s.doneAt = -9; s.cake = []; s.order = recipe(level, nLayers); newShelf(); s.wait = patience; }
         },
         draw(ctx, A) {
           const g = geo(A);
@@ -144,14 +149,16 @@
           let yy = oy + oh - 12; const mw = ow * 0.62, mb = 11;
           s.order.forEach((k, i) => { const h = layerH(k, mb * 1.4); ctx.globalAlpha = i < s.cake.length ? 0.35 : 1; layer(ctx, k, ox + ow / 2, yy, mw, h, s.t); ctx.globalAlpha = 1; if (i === s.cake.length) { ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.moveTo(ox + 8, yy - h / 2 - 4); ctx.lineTo(ox + 14, yy - h / 2); ctx.lineTo(ox + 8, yy - h / 2 + 4); ctx.fill(); } yy -= h + 1; });
           // Ava hoping for crumbs
-          PG.ava.draw(ctx, A.x + A.w - 52, g.plateY + 6, A.w * 0.17, { pose: s.doneAt > 0 && s.t - s.doneAt < 1.2 ? 'hop' : 'idle', t: s.t, shadow: false });
+          PG.ava.draw(ctx, A.x + A.w - 30, g.plateY + 6, A.w * 0.13, { pose: s.doneAt > 0 && s.t - s.doneAt < 1.2 ? 'hop' : 'idle', t: s.t, shadow: false });
           // plate and cake
-          ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.ellipse(g.cx, g.plateY + 4, g.cw * 0.68, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#E3D6DC'; ctx.stroke();
+          ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.ellipse(g.cx + s.plate * g.cw, g.plateY + 4, g.cw * 0.68, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#E3D6DC'; ctx.stroke();
+          // patience bar of the customer
+          if (s.doneAt < 0 && !inst.over) { const k = Math.max(0, s.wait / patience), bx = A.x + 120, bw = A.w - 140, by = A.y + 44; ctx.fillStyle = 'rgba(255,255,255,0.8)'; PG.rrect(bx, by, bw, 12, 6); ctx.fill(); ctx.fillStyle = k > 0.5 ? '#22B59B' : k > 0.25 ? '#F5B12E' : '#E5484D'; PG.rrect(bx, by, Math.max(8, bw * k), 12, 6); ctx.fill(); txt('терпіння клієнта', bx + bw / 2, by + 24, 10, '#8A5A6E', { font: FB, weight: 900 }); }
           let y = g.plateY;
           s.cake.forEach((l, i) => {
             const h = layerH(l.kind, g.base), sq = i === s.cake.length - 1 ? 1 - Math.sin(Math.min(1, (s.t - l.at) / 0.25) * Math.PI) * 0.12 : 1;
             const wob = Math.sin(s.t * 20) * s.wobble * 2 * (i / Math.max(1, s.cake.length));
-            ctx.save(); ctx.translate(g.cx + l.x * g.cw + wob, y); ctx.scale(1 / Math.sqrt(sq), sq); layer(ctx, l.kind, 0, 0, g.cw, h, s.t); ctx.restore();
+            ctx.save(); ctx.translate(g.cx + (l.x + s.plate) * g.cw + wob, y); ctx.scale(1 / Math.sqrt(sq), sq); layer(ctx, l.kind, 0, 0, g.cw, h, s.t); ctx.restore();
             y -= h * (l.kind.startsWith('top:') ? 0 : 0.92);
           });
           // the sliding layer, with a drop guide

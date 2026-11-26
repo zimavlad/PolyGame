@@ -1004,6 +1004,7 @@ function drawArcade() {
     const onPath = AR.from === 'level';
     const rows = [[cap(g.unit), `${prog}/${g.count}`], ['Енергія', `+${AR.eGain} ⚡`], ['Очки', `+${AR.sGain}`]];
     if (!onPath) rows.push(AR.won ? ['Наступного разу', `рівень ${AR.level + 1}`] : ['Рівень гри', String(AR.level)]);
+    if (AR.won && AR.inst.stars) rows.unshift(['Зірки', '★'.repeat(AR.inst.stars) + '☆'.repeat(3 - AR.inst.stars)]);
     drawPanel(AR.won ? (onPath ? 'Пройдено!' : `Рівень ${AR.level} пройдено!`) : 'Майже вийшло', d.accent || PAL[3], rows,
       AR.resultAt, AR.from === 'rush' ? 'Тапни, щоб повернутись' : 'Тапни, щоб продовжити');
   }

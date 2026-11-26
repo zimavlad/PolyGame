@@ -3,7 +3,7 @@
 // does in real life; bump into it and she barks and gets a fright. Three hearts; the treats are the goal.
 (function () {
   const PG = window.PG;
-  const { FD, FB, clamp, rand, randi, pick, txt, rgba } = PG;
+  const { FD, FB, clamp, lerp, rand, randi, pick, txt, rgba } = PG;
   const ACCENT = '#F28A3C';
   const TREATS = ['biscuit', 'cookie', 'sausage', 'bone'];
   const DOGS = [
@@ -50,8 +50,8 @@
     family: 'Ава',
     accent: ACCENT,
     thumb: 'img/ava/jump.webp',
-    howto: ['Тапни — Ава стрибне', 'Собака попереду? Тримай палець — Ава підкрадеться'],
-    goal: lv => ({ count: Math.min(16 + (lv - 1) * 3, 45), unit: 'смаколиків' }),
+    howto: ['Добіжи до воріт. Тапни — Ава стрибне', 'Смаколики дають зірки. Собака? Тримай палець'],
+    goal: lv => ({ count: Math.min(250 + (lv - 1) * 60, 700), unit: 'метрів' }),
     twist: lv => ({ 1: 'Розминка: калюжі й смаколики', 2: 'Нове: кущі й каміння', 3: 'Нове: інші собаки — тримай палець', 4: 'Нове: пляж і швидше', 5: 'Нове: кіт — стрибни двічі в повітрі', 6: 'Нове: подвійні калюжі' }[lv] || (lv % 2 ? 'Швидше на 8%' : 'Більше собак і котів')),
     icon(ctx, x, y, r) { if (!PG.ava.draw(ctx, x, y + r * 0.55, r * 1.3, { pose: 'run', t: PG.now, shadow: false })) { ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2); ctx.fill(); } },
     create(level) {
@@ -62,13 +62,18 @@
       const GY = 0.885, FX = 0.27;
       const s = {
         t: 0, scroll: 0, speed: speed0, y: 0, vy: 0, air: 0, jumps: 0, objs: [], gap: 0.9, hearts: 3, hurtT: -9, hurtUntil: 0,
-        creep: false, holdAt: -1, started: false, fx: [], barkAt: -9, combo: 0
+        creep: false, holdAt: -1, started: false, fx: [], barkAt: -9, combo: 0, treats: 0, seen: 0, magnetUntil: 0, slowUntil: 0, spawns: 0
       };
+      const goalM = Math.min(250 + (L - 1) * 60, 700), M_PER_W = 25; // metres per arena width of path
       const inst = { progress: 0, over: null, stats: { level: L, jumps: 0, hits: 0, dogs: 0, sneaks: 0 } };
       inst._s = s; // for automated checks
       function spawn() {
         const r = Math.random();
         const x = 1.25;
+        // the finish gate is near: keep the last stretch clear
+        if (goalM - s.scroll * M_PER_W < 40) { s.gap = 0.5; return; }
+        // power-ups now and then: a golden bone pulls treats in, a heart when one is lost
+        if (++s.spawns % 7 === 0) { s.objs.push({ type: s.hearts < 3 && L >= 2 && Math.random() < 0.5 ? 'heart' : 'magnet', x, alt: 0.22, w: 0.06 }); s.gap = 0.45; return; }
         const dogNear = s.objs.some(o => o.type === 'dog');
         const clearAhead = !s.objs.some(o => o.type !== 'treat' && o.x > FX - 0.15);
         if (feat.dog && !dogNear && r < 0.22 + Math.min(0.1, L * 0.01)) {
@@ -120,9 +125,12 @@
         update(dt, A) {
           s.t += dt;
           if (inst.over && !inst.over.won) { s.y = Math.max(0, s.y + s.vy * dt); s.vy -= 4.2 * dt; return; }
-          const sp = s.speed * (s.creep ? 0.45 : 1) * (inst.over ? 0.4 : 1);
-          s.scroll += sp * dt;
-          s.speed = speed0 * (1 + Math.min(0.25, inst.progress / Math.max(1, AR_goal()) * 0.25));
+          const sp = s.speed * (s.creep ? 0.45 : 1) * (inst.over ? 0.4 : 1) * (s.t < s.slowUntil ? 0.55 : 1);
+          if (s.started) s.scroll += sp * dt;
+          inst.progress = Math.min(goalM, Math.floor(s.scroll * M_PER_W));
+          s.speed = speed0 * (1 + Math.min(0.3, inst.progress / goalM * 0.3));
+          // the golden bone pulls treats ahead of her in
+          if (s.t < s.magnetUntil) for (const o of s.objs) if (o.type === 'treat' && !o.got && o.x > FX - 0.05 && o.x < FX + 0.55) { o.x = lerp(o.x, FX + 0.02, Math.min(1, dt * 5)); o.alt = lerp(o.alt, s.y + 0.06, Math.min(1, dt * 5)); }
           // physics (heights in A.h units)
           if (s.y > 0 || s.vy > 0) { s.vy -= 4.0 * dt; s.y += s.vy * dt; if (s.y <= 0) { s.y = 0; s.vy = 0; s.jumps = 0; s.landAt = s.t; if (s.t - (s.buffer || -9) < 0.18) { s.buffer = -9; jump(); } PG.burst(A.x + FX * A.w, A.y + GY * A.h, 'rgba(210,190,160,0.9)', 7, 90); } }
           // little dust puffs from her paws while she runs
@@ -144,13 +152,22 @@
             if (o.type === 'treat' && !o.got) {
               const ty = o.alt + Math.sin(s.t * 4 + o.x * 9) * 0.01;
               if (overlap && Math.abs(ty - (s.y + 0.06)) < 0.11) {
-                o.got = true; inst.progress++; s.combo++;
+                o.got = true; s.treats++; s.combo++;
                 const px = A.x + o.x * A.w, py = A.y + (GY - ty) * A.h;
                 PG.reward({ score: 10 + Math.min(s.combo, 10), x: px, y: py });
                 if (s.combo > 0 && s.combo % 5 === 0) { PG.reward({ energy: 1, x: px, y: py - 20 }); PG.floatText(px, py - 40, 'Смакота ×' + s.combo, ACCENT, 18); }
                 PG.sfx.candy(); PG.buzz(PG.HAP.tick); PG.burst(px, py, '#F5B12E', 8, 140);
               }
-            } else if (o.type === 'puddle' && overlap && s.y < 0.02 && !o.hit) { o.hit = true; hurt('puddle', A); }
+            } else if ((o.type === 'magnet' || o.type === 'heart') && !o.got && overlap && Math.abs(o.alt - (s.y + 0.06)) < 0.12) {
+              o.got = true; const px = A.x + o.x * A.w, py = A.y + (GY - o.alt) * A.h;
+              if (o.type === 'magnet') { s.magnetUntil = s.t + 6; PG.floatText(px, py - 30, 'Магніт!', '#F5B12E', 20); }
+              else { s.hearts = Math.min(3, s.hearts + 1); PG.floatText(px, py - 30, '+1 ♥', '#F2615E', 20); }
+              PG.sfx.loop(); PG.burst(px, py, o.type === 'magnet' ? '#F5B12E' : '#F2615E', 16, 180);
+            } else if (o.type === 'puddle' && overlap && s.y < 0.02 && !o.hit) {
+              o.hit = true;
+              if (L <= 2) { s.slowUntil = s.t + 0.7; s.combo = 0; PG.floatText(ax, ay - A.h * 0.25, 'Хлюп!', '#3E9BF0', 20); PG.burst(ax, ay, '#5BB2E4', 14, 200); PG.sfx.back(); }
+              else hurt('puddle', A);
+            }
             else if ((o.type === 'bush' || o.type === 'cat') && overlap && s.y < o.h * 0.7 && !o.hit) { o.hit = true; hurt(o.type, A); }
             else if (o.type === 'dog') {
               if (overlap && !o.hit && !crouch) { o.hit = true; inst.stats.dogs++; hurt('dog', A); }
@@ -160,9 +177,15 @@
               }
             }
           }
-          s.objs = s.objs.filter(o => o.x > -0.5 && !(o.type === 'treat' && o.got));
+          for (const o of s.objs) if (o.type === 'treat' && !o.counted && o.x < FX) { o.counted = true; s.seen++; }
+          s.objs = s.objs.filter(o => o.x > -0.5 && !(o.got && o.type !== 'dog'));
         },
-        win() { s.objs = s.objs.filter(o => o.type === 'treat'); },
+        win() {
+          s.objs = s.objs.filter(o => o.type === 'treat');
+          const share = s.treats / Math.max(1, s.seen + s.objs.filter(o => o.type === 'treat').length);
+          inst.stars = share >= 0.85 && s.hearts === 3 ? 3 : share >= 0.55 ? 2 : 1;
+          inst.stats.treats = s.treats; inst.stats.stars = inst.stars;
+        },
         draw(ctx, A) {
           // background: seamless panorama scaled to the arena height, scrolling at 60% for depth
           const bg = PG.sprite(beach ? 'img/walk/bg_beach.webp' : 'img/walk/bg_park.webp');
@@ -173,7 +196,18 @@
           } else { ctx.fillStyle = '#BFE3F7'; ctx.fillRect(A.x, A.y, A.w, A.h); }
           const ax = A.x + FX * A.w, gy = A.y + GY * A.h;
           // the big counter in the sky, Ketchapp style
-          txt(String(inst.progress), A.x + A.w / 2, A.y + A.h * 0.2, Math.min(86, A.w * 0.24), 'rgba(255,255,255,0.75)', { font: FD });
+          // the treat counter in the sky and the metres left
+          PG.drawSprite(ctx, 'img/treats/biscuit.webp', A.x + A.w / 2 - 44, A.y + A.h * 0.2, 36, { rot: -0.3 });
+          txt(String(s.treats), A.x + A.w / 2 + 14, A.y + A.h * 0.2, Math.min(70, A.w * 0.19), 'rgba(255,255,255,0.85)', { font: FD });
+          txt(`ще ${Math.max(0, goalM - inst.progress)} м`, A.x + A.w - 50, A.y + 24, 13, 'rgba(39,48,63,0.7)', { font: FB, weight: 900 });
+          if (s.t < s.magnetUntil) { const k = (s.magnetUntil - s.t) / 6; ctx.strokeStyle = 'rgba(245,177,46,0.8)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(A.x + A.w - 30, A.y + 54, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke(); PG.ava.bone(ctx, A.x + A.w - 30, A.y + 54, 14, -0.4, '#F5B12E'); }
+          // the finish gate, once it is on screen
+          const gateX = A.x + (FX + goalM / M_PER_W - s.scroll) * A.w;
+          if (gateX < A.x + A.w + 60) {
+            ctx.fillStyle = '#8E5E37'; ctx.fillRect(gateX - 4, gy - A.h * 0.42, 8, A.h * 0.42); ctx.fillRect(gateX + 56, gy - A.h * 0.42, 8, A.h * 0.42);
+            for (let i = 0; i < 8; i++) { ctx.fillStyle = i % 2 ? '#27303F' : '#FFFFFF'; ctx.fillRect(gateX - 4 + i * 8.5, gy - A.h * 0.42, 8.5, 16); ctx.fillStyle = i % 2 ? '#FFFFFF' : '#27303F'; ctx.fillRect(gateX - 4 + i * 8.5, gy - A.h * 0.42 + 16, 8.5, 16); }
+            txt('ФІНІШ', gateX + 30, gy - A.h * 0.42 - 14, 14, '#27303F', { font: FD });
+          }
           // objects behind Ava
           const lift = s.y * A.h;
           for (const o of s.objs) {
@@ -190,6 +224,10 @@
                 ctx.fillStyle = rgba('#27303F', 0.78); PG.rrect(A.x + A.w / 2 - 86, A.y + A.h * 0.34, 172, 34, 17); ctx.fill();
                 txt(s.creep ? 'Тихенько…' : 'Тримай палець!', A.x + A.w / 2, A.y + A.h * 0.34 + 17, 15, rgba('#FFFFFF', s.creep ? 1 : p), { font: FB, weight: 900 });
               }
+            } else if (o.type === 'magnet' || o.type === 'heart') {
+              const ty = gy - (o.alt + Math.sin(s.t * 5 + o.x * 9) * 0.015) * A.h, pulse = 1 + Math.sin(s.t * 8) * 0.08;
+              ctx.fillStyle = o.type === 'magnet' ? 'rgba(245,177,46,0.35)' : 'rgba(242,97,94,0.3)'; ctx.beginPath(); ctx.arc(ox, ty, A.w * 0.065 * pulse, 0, Math.PI * 2); ctx.fill();
+              if (o.type === 'magnet') PG.ava.bone(ctx, ox, ty, A.w * 0.09, Math.sin(s.t * 3) * 0.3, '#F5B12E'); else heart(ctx, ox, ty, A.w * 0.075, true);
             } else if (o.type === 'treat') {
               const ty = gy - (o.alt + Math.sin(s.t * 4 + o.x * 9) * 0.01) * A.h;
               ctx.fillStyle = 'rgba(255,240,180,0.35)'; ctx.beginPath(); ctx.arc(ox, ty, A.w * 0.05, 0, Math.PI * 2); ctx.fill();
@@ -213,9 +251,6 @@
           for (let i = 0; i < 3; i++) heart(ctx, A.x + 22 + i * 26, A.y + 24, 22, i < s.hearts);
         }
       });
-      // goal for the in-round speed ramp
-      const goalN = Math.min(16 + (L - 1) * 3, 45);
-      function AR_goal() { return goalN; }
       return inst;
     }
   });

@@ -8,6 +8,9 @@
   const ITEMS = ['biscuit', 'cookie', 'sausage', 'ball', 'chicken', 'frisbee', 'bone', 'bear', 'bed'];
   const NAMES = ['печиво-кісточка', 'печиво', 'сосиска', "м'ячик", 'курочка-пищалка', 'фризбі', 'велика кістка', 'ведмедик', 'лежанка'];
   const RAD = ITEMS.map((_, k) => 0.058 * Math.pow(1.235, k)); // in basket widths
+  // each level asks for one treat further up the ladder: a ball, a squeaky chicken ... Ava's bed
+  const GOALN = ['', '', '', "м'ячик", 'курочка-пищалка', 'фризбі', 'велика кістка', 'ведмедик', 'лежанка'];
+  const targetOf = lv => Math.min(3 + lv, 8);
   const notes = [523.25, 587.33, 659.25, 698.46, 783.99, 880, 987.77, 1046.5, 1174.66];
   PG.arcade.register({
     id: 'avamerge',
@@ -15,9 +18,9 @@
     family: 'Ава',
     accent: ACCENT,
     thumb: 'img/treats/chicken.webp',
-    howto: ['Веди пальцем і відпусти — смаколик падає', 'Два однакові злипаються в більший'],
-    goal: lv => ({ count: Math.min(14 + (lv - 1) * 4, 50), unit: 'злиттів' }),
-    twist: lv => ({ 1: 'Розминка: просторий кошик', 2: 'Більша ціль', 3: 'Нове: падають і сосиски', 4: 'Кошик вужчий', 5: "Нове: падають і м'ячики" }[lv] || 'Кошик вужчий, ціль більша'),
+    howto: ['Веди пальцем і відпусти — смаколик падає', 'Два однакові злипаються. Збери ціль угорі'],
+    goal: lv => ({ count: 1, unit: GOALN[targetOf(lv)] }),
+    twist: lv => `Зроби: ${GOALN[targetOf(lv)]}` + (lv >= 2 ? ' · кошик вужчий' : ''),
     icon(ctx, x, y, r) { PG.drawSprite(ctx, 'img/treats/chicken.webp', x, y, r * 1.5); },
     create(level) {
       const L = level;
@@ -25,6 +28,10 @@
       const narrow = L >= 2 ? Math.min(0.16, 0.035 * (L - 1)) : 0;
       const s = { t: 0, items: [], aim: 0.5, cur: randi(maxSpawn + 1), next: randi(maxSpawn + 1), cool: 0, danger: 0, pops: [], idc: 0, sleepAt: -9, cheerAt: -9, best: 0 };
       const inst = { progress: 0, over: null, stats: { level: L, drops: 0, top: 0 } };
+      const target = targetOf(L);
+      // drops a tidy player needs: the goal's 'mass' (2^tier) over the average mass of a dropped treat, plus some slack
+      const avgMass = (() => { let m = 0; for (let k = 0; k <= (L >= 3 ? 3 : L >= 2 ? 2 : 1); k++) m += Math.pow(2, k); return m / ((L >= 3 ? 3 : L >= 2 ? 2 : 1) + 1); })();
+      const parDrops = Math.ceil(Math.pow(2, target) / avgMass * 1.15);
       inst._s = s;
       let box = null; // basket in px, recomputed every frame
       const geo = A => {
@@ -41,7 +48,7 @@
       function merge(a, b, A) {
         a.dead = b.dead = true;
         const k = a.k + 1, x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
-        inst.progress++;
+        s.merges = (s.merges || 0) + 1;
         const px = box.x + x * box.w, py = box.top + y * box.w;
         if (k >= ITEMS.length) { // two beds: Ava falls asleep in it
           s.sleepAt = s.t; PG.reward({ score: 500, energy: 3, x: px, y: py }); PG.floatText(px, py - 40, 'Ава спить!', ACCENT, 24);
@@ -49,6 +56,11 @@
         }
         s.items.push({ id: ++s.idc, k, x, y, vx: 0, vy: -0.4, rot: 0, vr: rand(-2, 2), born: s.t, pop: s.t });
         s.best = Math.max(s.best, k); inst.stats.top = s.best;
+        if (k >= target && !inst.progress) { // the goal treat: Ava jumps for joy
+          inst.progress = 1; s.cheerAt = s.t;
+          const used = inst.stats.drops; inst.stars = used <= parDrops ? 3 : used <= parDrops * 1.4 ? 2 : 1; inst.stats.stars = inst.stars;
+          PG.floatText(px, py - 50, 'Ура! ' + GOALN[target] + '!', ACCENT, 22);
+        }
         PG.reward({ score: 10 * (k + 1), energy: k >= 5 ? 1 : 0, x: px, y: py });
         if (k >= 4) { s.cheerAt = s.t; PG.floatText(px, py - 30, NAMES[k] + '!', ACCENT, 18); }
         PG.tone && PG.tone(notes[Math.min(k, notes.length - 1)], 0.18, 'triangle', 0.1); PG.tone && PG.tone(notes[Math.min(k, notes.length - 1)] * 1.5, 0.2, 'sine', 0.05, 0.05);
@@ -99,7 +111,14 @@
           const g = ctx.createLinearGradient(0, A.y, 0, A.y + A.h); g.addColorStop(0, '#FFE9CF'); g.addColorStop(1, '#F6C9A0');
           ctx.fillStyle = g; ctx.fillRect(A.x, A.y, A.w, A.h);
           ctx.fillStyle = 'rgba(255,255,255,0.3)'; for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) { ctx.beginPath(); ctx.arc(A.x + (i + (j % 2) * 0.5) * A.w / 6, A.y + j * A.h / 8, 3, 0, Math.PI * 2); ctx.fill(); }
-          txt(String(inst.progress), A.x + A.w / 2, A.y + A.h * 0.55, Math.min(110, A.w * 0.3), 'rgba(255,255,255,0.55)', { font: FD });
+          // the ladder up to the goal treat: what you have made so far glows, the goal sits in a ring
+          const ly0 = A.y + A.h * 0.235 - 22, n = target + 1, step = Math.min(30, (A.w - 150) / n), lx0 = A.x + A.w / 2 - (n - 1) * step / 2 + 30;
+          for (let k = 0; k <= target; k++) {
+            const x = lx0 + k * step, got = k <= s.best, isGoal = k === target;
+            if (isGoal) { ctx.strokeStyle = rgba(ACCENT, 0.6 + 0.4 * Math.sin(s.t * 5)); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, ly0, step * 0.52, 0, Math.PI * 2); ctx.stroke(); }
+            PG.drawSprite(ctx, 'img/treats/' + ITEMS[k] + '.webp', x, ly0, step * (isGoal ? 0.95 : 0.78), { alpha: got ? 1 : 0.28 });
+          }
+          txt(`кидків: ${inst.stats.drops}`, A.x + A.w / 2 + 30, ly0 + 22, 11, 'rgba(154,106,68,0.8)', { font: FB, weight: 900 });
           // basket
           const bx = box.x, bw = box.w, bt = box.top, bb = box.bottom;
           ctx.fillStyle = 'rgba(160,100,50,0.12)'; PG.rrect(bx - 6, bt, bw + 12, bb - bt + 8, 18); ctx.fill();
