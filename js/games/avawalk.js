@@ -52,7 +52,7 @@
     thumb: 'img/ava/run2.webp',
     howto: ['Тапни — Ава стрибне', 'Собака попереду? Тримай палець — Ава підкрадеться'],
     goal: lv => ({ count: Math.min(16 + (lv - 1) * 3, 45), unit: 'смаколиків' }),
-    twist: lv => ({ 1: 'Розминка: калюжі й смаколики', 2: 'Нове: кущі', 3: 'Нове: інші собаки — тримай палець', 4: 'Нове: пляж і швидше', 5: 'Нове: кіт — стрибни двічі в повітрі', 6: 'Нове: подвійні калюжі' }[lv] || (lv % 2 ? 'Швидше на 8%' : 'Більше собак і котів')),
+    twist: lv => ({ 1: 'Розминка: калюжі й смаколики', 2: 'Нове: кущі й каміння', 3: 'Нове: інші собаки — тримай палець', 4: 'Нове: пляж і швидше', 5: 'Нове: кіт — стрибни двічі в повітрі', 6: 'Нове: подвійні калюжі' }[lv] || (lv % 2 ? 'Швидше на 8%' : 'Більше собак і котів')),
     icon(ctx, x, y, r) { if (!PG.ava.draw(ctx, x, y + r * 0.55, r * 1.3, { pose: 'run', t: PG.now, shadow: false })) { ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2); ctx.fill(); } },
     create(level) {
       const L = level;
@@ -78,7 +78,7 @@
           s.gap = 1.15; return;
         }
         if (feat.cat && r < 0.36) { s.objs.push({ type: 'cat', x, w: 0.14, h: 0.15 }); s.objs.push({ type: 'treat', x: x + 0.02, alt: 0.42, k: pick(TREATS) }); s.gap = 0.8; return; }
-        if (feat.bush && r < 0.55) { s.objs.push({ type: 'bush', x, w: 0.14, h: 0.12 }); s.objs.push({ type: 'treat', x: x, alt: 0.24, k: pick(TREATS) }); s.gap = rand(0.6, 0.9); return; }
+        if (feat.bush && r < 0.55) { s.objs.push({ type: 'bush', x, w: 0.14, h: 0.12, stone: Math.random() < 0.4 }); s.objs.push({ type: 'treat', x: x, alt: 0.24, k: pick(TREATS) }); s.gap = rand(0.6, 0.9); return; }
         if (r < 0.86) {
           const n = feat.double && Math.random() < 0.4 ? 2 : 1;
           for (let i = 0; i < n; i++) s.objs.push({ type: 'puddle', x: x + i * 0.2, w: 0.15 });
@@ -177,8 +177,8 @@
           const lift = s.y * A.h;
           for (const o of s.objs) {
             const ox = A.x + o.x * A.w;
-            if (o.type === 'puddle') drawPuddle(ctx, ox, gy + 2, o.w * A.w);
-            else if (o.type === 'bush') drawBush(ctx, ox, gy + 4, o.w * A.w, o.h * A.h * 1.6);
+            if (o.type === 'puddle') { if (!PG.drawSprite(ctx, 'img/walk/puddle.webp', ox, gy + 4, o.w * A.w * 1.5 * 89 / 400, { ay: 0.55 })) drawPuddle(ctx, ox, gy + 2, o.w * A.w); }
+            else if (o.type === 'bush') { const im = o.stone ? 'img/walk/stone.webp' : 'img/walk/bush.webp'; if (!PG.drawSprite(ctx, im, ox, gy + 6, o.h * A.h * 1.45, { ay: 1 })) drawBush(ctx, ox, gy + 4, o.w * A.w, o.h * A.h * 1.6); }
             else if (o.type === 'cat') PG.drawSprite(ctx, 'img/walk/cat.webp', ox, gy + 3, o.h * A.h * 1.25, { ay: 1 });
             else if (o.type === 'dog') {
               const bob = Math.abs(Math.sin(s.t * 7)) * 2;
@@ -200,14 +200,14 @@
           const blink = s.t < s.hurtUntil && !hurting && Math.floor(s.t * 12) % 2 === 0;
           let pose = 'run';
           if (!s.started) pose = 'stand';
-          else if (inst.over && inst.over.won) pose = 'jump';
+          else if (inst.over && inst.over.won) pose = 'hop';
           else if (hurting || (inst.over && !inst.over.won)) pose = 'scared';
           else if (s.creep && s.y <= 0) pose = 'stalk';
           s.fx.forEach(f => { ctx.fillStyle = `rgba(214,196,168,${0.55 * (1 - f.t / 0.6)})`; ctx.beginPath(); ctx.arc(A.x + f.x * A.w, gy - f.y * A.h - 2, f.r + f.t * 10, 0, Math.PI * 2); ctx.fill(); });
           // in the air she keeps her stretched gallop frame; on landing a quick squash
           if (pose === 'run' && s.y > 0.01) pose = s.vy > 0 ? 'leapUp' : 'leapDown';
           const land = s.landAt != null ? Math.min(1, (s.t - s.landAt) / 0.18) : 1, sq = 1 - Math.sin(land * Math.PI) * 0.1;
-          if (!blink) { ctx.save(); ctx.translate(ax, gy - lift); ctx.scale(1 / Math.sqrt(sq), sq); ctx.rotate(s.y > 0.01 ? -s.vy * 0.06 : 0); PG.ava.draw(ctx, 0, 0, A.w * 0.2, { pose, t: s.t }); ctx.restore(); }
+          if (!blink) { ctx.save(); ctx.translate(ax, gy - lift); ctx.scale(1 / Math.sqrt(sq), sq); ctx.rotate(s.y > 0.01 ? -s.vy * 0.06 : 0); PG.ava.draw(ctx, 0, 0, A.w * 0.235, { pose, t: s.t }); ctx.restore(); }
           // hearts
           for (let i = 0; i < 3; i++) heart(ctx, A.x + 22 + i * 26, A.y + 24, 22, i < s.hearts);
         }

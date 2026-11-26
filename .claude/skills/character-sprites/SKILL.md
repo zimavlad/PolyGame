@@ -56,9 +56,20 @@ replace the white background with flat chroma-key green".
 returns a consistent 2×2 grid. Cut it into quadrants and key every frame with the SAME `--box` so the dog does not
 jump between frames. Frames generated one by one drift in scale; avoid that.
 
+**Real animation, not stills**: still sprites wobbled by code read as cheap. For every action the character does on
+screen (walk, sniff, dig, idle, crouch, scared, celebrate) generate an 8-frame cycle: "exactly 8 frames in a grid of 4
+columns and 2 rows ... one seamless looping cycle" with `--aspect 16:9 --size 2K`, the chosen still and an existing cycle
+as refs. The model sometimes returns 12 or 16 frames, adds a big extra copy, or draws grid lines: `cut_frames.py` copes
+with all of that and aligns frames on the feet (`--anchor feet`) or on the row floor for jumps (`--anchor row`).
+Green subjects (bushes, leaves) go on a MAGENTA #FF00FF screen; the keyer detects it.
+
 Make a contact sheet of the whole set and look at it before cutting: regenerate any pose whose markings or style drift.
+Then check motion in the game itself: capture 10–12 screenshots 100 ms apart during play and look at them side by side
+(scale jumps between poses, sliding feet and hand-drawn props next to generated art all show up there).
 
 ## 3. Cut sprites
+
+`cut_frames.py sheet.png img/NAME/anim/walk_ --max 400` cuts a cycle into `walk_0.webp … walk_7.webp`.
 
 ```bash
 python3 .claude/skills/character-sprites/scripts/chroma_key.py pose.png img/NAME/pose.webp --max 520

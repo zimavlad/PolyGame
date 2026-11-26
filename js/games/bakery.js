@@ -144,7 +144,7 @@
           let yy = oy + oh - 12; const mw = ow * 0.62, mb = 11;
           s.order.forEach((k, i) => { const h = layerH(k, mb * 1.4); ctx.globalAlpha = i < s.cake.length ? 0.35 : 1; layer(ctx, k, ox + ow / 2, yy, mw, h, s.t); ctx.globalAlpha = 1; if (i === s.cake.length) { ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.moveTo(ox + 8, yy - h / 2 - 4); ctx.lineTo(ox + 14, yy - h / 2); ctx.lineTo(ox + 8, yy - h / 2 + 4); ctx.fill(); } yy -= h + 1; });
           // Ava hoping for crumbs
-          PG.ava.draw(ctx, A.x + A.w - 52, g.plateY + 6, A.w * 0.17, { pose: s.doneAt > 0 && s.t - s.doneAt < 1.2 ? 'jump' : 'happy', t: s.t, shadow: false });
+          PG.ava.draw(ctx, A.x + A.w - 52, g.plateY + 6, A.w * 0.17, { pose: s.doneAt > 0 && s.t - s.doneAt < 1.2 ? 'hop' : 'idle', t: s.t, shadow: false });
           // plate and cake
           ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.ellipse(g.cx, g.plateY + 4, g.cw * 0.68, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#E3D6DC'; ctx.stroke();
           let y = g.plateY;

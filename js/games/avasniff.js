@@ -136,8 +136,9 @@
           }
           // Ava
           const scared = s.t < s.scaredUntil, cele = s.t - s.celebrate < 1;
-          const pose = scared ? 'scared' : cele ? 'jump' : s.dig > 0 ? 'sniff' : s.moving ? 'walk' : 'sniff';
-          PG.ava.draw(ctx, A.x + s.ax * A.w, A.y + s.ay * A.h, A.w * 0.19, { pose, t: s.t * (s.dig > 0 ? 2.5 : 1), dir: scared ? -s.dir : s.dir });
+          const far = hyp(s.tx - s.ax, (s.ty - s.ay) * 1.35) > 0.14;
+          const pose = scared ? 'scared' : cele ? 'hop' : s.dig > 0 ? 'dig' : s.moving ? (far ? 'run' : 'walk') : 'sniff';
+          PG.ava.draw(ctx, A.x + s.ax * A.w, A.y + s.ay * A.h, A.w * 0.2, { pose, t: s.t, dir: scared ? -s.dir : s.dir });
           // HUD: nose meter, time, bones
           const top = A.y + 14;
           if (L < 6) {

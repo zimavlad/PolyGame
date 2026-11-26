@@ -324,9 +324,19 @@ $('updGo').addEventListener('click', () => {
   openLibrary();
   requestAnimationFrame(() => { const n = $('libNew'); if (n) n.scrollIntoView({ block: 'start' }); });
 });
-// tapping Ava in the menu makes her hop and bark
+// Ava in the menu: sits and wags (8-frame cycle); a tap makes her hop with joy and bark
+const MENU_ANIM = { idle: [], hop: [] };
+['idle', 'hop'].forEach(k => { for (let i = 0; i < 8; i++) { const im = new Image(); im.src = `img/ava/anim/${k}_${i}.webp?v=${PG.BUILD}`; MENU_ANIM[k].push(im); } });
+let menuHopUntil = 0, menuFrame = 0;
+setInterval(() => {
+  const el = $('menuAva'); if (!el || $('menu').hidden) return;
+  const hop = Date.now() < menuHopUntil, set = hop ? MENU_ANIM.hop : MENU_ANIM.idle;
+  menuFrame = (menuFrame + 1) % 8;
+  const im = set[menuFrame]; if (im.complete && im.naturalWidth) el.src = im.src;
+}, 130);
 $('menuAva').addEventListener('click', e => {
   const im = e.currentTarget; im.classList.remove('hop'); void im.offsetWidth; im.classList.add('hop');
+  menuHopUntil = Date.now() + 1100; menuFrame = 0;
   if (PG.tone) { PG.tone(430, 0.09, 'square', 0.05, 0, 0.55); PG.tone(390, 0.11, 'square', 0.05, 0.13, 0.5); }
   PG.buzz(PG.HAP.double);
 });

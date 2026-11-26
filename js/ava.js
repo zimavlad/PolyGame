@@ -1,14 +1,14 @@
 // Ava, the family dog: AI-rendered sprites (img/ava/*.webp, made from her photos with the character-sprites skill).
 // PG.ava.draw(ctx, x, y, size, {pose, t, dir, alpha}) draws her standing on the point (x, y);
 // `size` is her body length in CSS px, so every pose shows the same dog at the same scale.
-// Poses: sit, happy (sitting, tongue out), stand, sniff, stalk, jump, scared, sleep, run / walk (8-frame gallop).
+// Stills: sit, happy, stand, sniff, stalk, jump, scared, sleep. Cycles: run (gallop), walk, sniff, dig, idle, stalk, scared, hop.
 // The sprites are still images, so life comes from small procedural motion: breathing, bobbing, trembling.
 (function () {
 'use strict';
 const PG = window.PG;
 const V = typeof BUILD !== 'undefined' ? BUILD : '1';
 // per sprite: body length in source px (chest to rump, without the tail) and where her feet are (fraction of height)
-const R = { body: 182, foot: 0.93 };
+const R = { body: 215, foot: 0.93 };
 const META = {
   sit: { body: 310, foot: 0.97 }, happy: { body: 300, foot: 0.98 }, stand: { body: 300, foot: 0.97 },
   sniff: { body: 290, foot: 0.95 }, stalk: { body: 300, foot: 0.96 }, jump: { body: 330, foot: 0.98 },
@@ -16,6 +16,25 @@ const META = {
   run0: R, run1: R, run2: R, run3: R, run4: R, run5: R, run6: R, run7: R
 };
 const FILE = {};
+// real animation cycles (img/ava/anim/<name>_<i>.webp): frames, speed, body length in source px, feet line
+const ANIM = {
+  walk: { n: 8, fps: 11, body: 195, foot: 0.963, still: 'stand' },
+  sniff: { n: 8, fps: 9, body: 185, foot: 0.972, still: 'sniff' },
+  dig: { n: 8, fps: 15, body: 214, foot: 0.975, still: 'sniff' },
+  idle: { n: 8, fps: 6, body: 218, foot: 0.987, still: 'happy' },
+  stalk: { n: 16, fps: 12, body: 198, foot: 0.961, still: 'stalk' },
+  scared: { n: 12, fps: 16, body: 240, foot: 0.979, still: 'scared' },
+  hop: { n: 8, fps: 11, body: 214, foot: 0.989, still: 'jump' }
+};
+function animFrame(pose, t) {
+  const a = ANIM[pose]; if (!a) return null;
+  const i = Math.floor(t * a.fps) % a.n, name = `anim/${pose}_${i}`;
+  const im = img(name);
+  // warm up the whole cycle the first time it is used, so it plays without gaps
+  if (!a.warm) { a.warm = true; for (let k = 0; k < a.n; k++) img(`anim/${pose}_${k}`); }
+  return im ? { im, m: a } : null;
+}
+
 const IMG = {};
 function img(name) {
   let im = IMG[name];
@@ -39,7 +58,13 @@ function draw(ctx, x, y, size, o = {}) {
     case 'sleep': sy = 1 + Math.sin(t * 2) * 0.025; sx = 1 - Math.sin(t * 2) * 0.008; break;
     default: sy = 1 + Math.sin(t * 2.2) * 0.012; // breathing
   }
-  const im = img(name), m = META[name] || META.stand;
+  let im = null, m = null;
+  const af = ANIM[pose] && animFrame(pose, t);
+  if (af) { im = af.im; m = af.m; dx = 0; rot = 0; if (pose !== 'hop') dy = 0; sx = 1; sy = 1; }
+  else {
+    if (ANIM[pose] && !META[name]) name = ANIM[pose].still; // frames still loading: show the still pose meanwhile
+    im = img(name); m = META[name] || META.stand;
+  }
   if (!im) { preload(); return false; }
   const k = size / m.body, w = im.naturalWidth * k, h = im.naturalHeight * k;
   ctx.save();

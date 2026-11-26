@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cut a character rendered on a flat chroma-green background into a trimmed transparent sprite.
+"""Cut a character rendered on a flat chroma-green (or magenta, for green subjects) background into a trimmed transparent sprite.
 
 usage: chroma_key.py in.png out.webp [--max 520] [--box x0,y0,x1,y1] [--nocrop]
 Alpha comes from how green each pixel is compared with the background; semi-transparent edge pixels are
@@ -14,8 +14,13 @@ def key(im):
     border = np.concatenate([a_rgb[:6].reshape(-1, 3), a_rgb[-6:].reshape(-1, 3), a_rgb[:, :6].reshape(-1, 3), a_rgb[:, -6:].reshape(-1, 3)])
     bg = np.median(border, axis=0)
     R, G, B = a_rgb[..., 0], a_rgb[..., 1], a_rgb[..., 2]
-    gx = G - np.maximum(R, B)
-    bgx = max(1.0, bg[1] - max(bg[0], bg[2]))
+    magenta = bg[0] > bg[1] + 60 and bg[2] > bg[1] + 60  # pink screen for green subjects (bushes, leaves)
+    if magenta:
+        gx = np.minimum(R, B) - G
+        bgx = max(1.0, min(bg[0], bg[2]) - bg[1])
+    else:
+        gx = G - np.maximum(R, B)
+        bgx = max(1.0, bg[1] - max(bg[0], bg[2]))
     alpha = 1 - np.clip((gx - bgx * 0.12) / (bgx * 0.62), 0, 1)
     alpha[gx <= bgx * 0.12] = 1
     a = alpha[..., None]
@@ -23,8 +28,13 @@ def key(im):
     fg = np.where(a > 0.02, (a_rgb - (1 - a) * bg) / np.maximum(a, 0.02), a_rgb)
     fg = np.clip(fg, 0, 255)
     R2, G2, B2 = fg[..., 0], fg[..., 1], fg[..., 2]
-    cap = np.maximum(R2, B2) * 1.04 + 4
-    G2 = np.minimum(G2, cap)
+    if magenta:  # pull red and blue spill back towards green
+        cap = G2 * 1.04 + 4 + np.abs(R2 - B2) * 0.5
+        R2 = np.where(np.minimum(R2, B2) > cap, np.minimum(R2, cap + (R2 - np.minimum(R2, B2))), R2)
+        B2 = np.where(np.minimum(R2, B2) > cap, np.minimum(B2, cap + (B2 - np.minimum(R2, B2))), B2)
+    else:
+        cap = np.maximum(R2, B2) * 1.04 + 4
+        G2 = np.minimum(G2, cap)
     out = np.dstack([R2, G2, B2, alpha * 255]).clip(0, 255).astype(np.uint8)
     return Image.fromarray(out, 'RGBA')
 

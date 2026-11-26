@@ -112,7 +112,7 @@
             ctx.lineWidth = i === s.sel ? 4 : 2; ctx.strokeStyle = i === s.sel ? '#2B6F67' : 'rgba(0,0,0,0.12)'; ctx.stroke();
             txt(left ? String(i + 1) : '✓', cx, cy + 1, Math.min(16, r), ['w', 'c', 'y', 's', 'l', 'p', 'f', 'g', 't'].includes(k) ? '#2E2D37' : '#FFFFFF', { font: FD });
           });
-          if (done) PG.ava.draw(ctx, A.x + A.w - 50, g.palY - 6, A.w * 0.16, { pose: 'jump', t: s.t, shadow: false });
+          if (done) PG.ava.draw(ctx, A.x + A.w - 50, g.palY - 6, A.w * 0.16, { pose: 'hop', t: s.t, shadow: false });
         }
       });
       return inst;

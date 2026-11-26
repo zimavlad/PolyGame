@@ -121,7 +121,7 @@
           PG.drawSprite(ctx, 'img/treats/' + ITEMS[s.next] + '.webp', A.x + A.w - 39, A.y + 44, 30);
           const sleeping = s.t - s.sleepAt < 3;
           if (sleeping) { PG.drawSprite(ctx, 'img/treats/bed.webp', A.x + 58, A.y + 72, 52); PG.ava.draw(ctx, A.x + 58, A.y + 82, A.w * 0.14, { pose: 'sleep', t: s.t, shadow: false }); txt('z z z', A.x + 98, A.y + 30 - (s.t % 1) * 8, 14, '#7765EE', { font: FD }); }
-          else PG.ava.draw(ctx, A.x + 52, A.y + A.h * 0.2, A.w * 0.15, { pose: s.t - s.cheerAt < 1 ? 'jump' : s.danger > 0 ? 'scared' : 'happy', t: s.t, shadow: false });
+          else PG.ava.draw(ctx, A.x + 52, A.y + A.h * 0.2, A.w * 0.15, { pose: s.t - s.cheerAt < 1 ? 'hop' : s.danger > 0 ? 'scared' : 'idle', t: s.t, shadow: false });
           // aim: the treat in hand and a guide line
           if (!inst.over) {
             const r = RAD[s.cur] * bw, px = bx + clamp(s.aim, RAD[s.cur], 1 - RAD[s.cur]) * bw, py = bt - r - 6;
