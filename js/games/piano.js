@@ -55,7 +55,7 @@
       // rows: each note starts at the running sum of eighth lengths; speed in eighths per second
       let acc = 0; const tiles = notes.map((n, i) => { const t = { at: acc, lane: ln[i], n, hit: false }; acc += n.len; return t; });
       const lap = Math.floor((level - 1) / SONGS.length);
-      const speed0 = Math.min(3.2 + (level - 1) * 0.22 + lap * 0.5, 7);
+      const speed0 = Math.min(3.9 + (level - 1) * 0.35 + lap * 0.6, 8.5);
       const s = { t: 0, pos: -4, speed: speed0, next: 0, flash: [], miss: null, started: false, glow: 0, lives: 3 };
       const inst = { progress: 0, over: null, stats: { level, song: song.name } };
       inst._s = s; s.tiles = tiles;
@@ -91,7 +91,7 @@
         update(dt, A) {
           s.t += dt; s.glow = Math.max(0, s.glow - dt * 3);
           if (inst.over) return;
-          s.speed = speed0 * (1 + 0.25 * inst.progress / notes.length);
+          s.speed = speed0 * (1 + 0.35 * inst.progress / notes.length);
           s.pos += s.speed * dt;
           const tl = tiles[s.next];
           if (tl && tileY(A, tl) > A.y + A.h + 4) fail(tl.lane, A, 'missed');

@@ -49,7 +49,7 @@
     title: 'Прогулянка з Авою',
     family: 'Ава',
     accent: ACCENT,
-    thumb: 'img/ava/run2.webp',
+    thumb: 'img/ava/jump.webp',
     howto: ['Тапни — Ава стрибне', 'Собака попереду? Тримай палець — Ава підкрадеться'],
     goal: lv => ({ count: Math.min(16 + (lv - 1) * 3, 45), unit: 'смаколиків' }),
     twist: lv => ({ 1: 'Розминка: калюжі й смаколики', 2: 'Нове: кущі й каміння', 3: 'Нове: інші собаки — тримай палець', 4: 'Нове: пляж і швидше', 5: 'Нове: кіт — стрибни двічі в повітрі', 6: 'Нове: подвійні калюжі' }[lv] || (lv % 2 ? 'Швидше на 8%' : 'Більше собак і котів')),
@@ -58,7 +58,7 @@
       const L = level;
       const feat = { bush: L >= 2, dog: L >= 3, cat: L >= 5, double: L >= 6, dj: L >= 5 };
       const beach = L >= 4 && L % 2 === 0;
-      const speed0 = Math.min(0.42 * Math.pow(1.08, L - 1), 0.85); // A.w per second
+      const speed0 = Math.min(0.42 * Math.pow(1.1, L - 1), 0.95); // A.w per second
       const GY = 0.885, FX = 0.27;
       const s = {
         t: 0, scroll: 0, speed: speed0, y: 0, vy: 0, air: 0, jumps: 0, objs: [], gap: 0.9, hearts: 3, hurtT: -9, hurtUntil: 0,
@@ -91,6 +91,7 @@
       }
       function dogAhead() { return s.objs.find(o => o.type === 'dog' && !o.passed && o.x - FX < 0.8 && o.x + o.w > FX - 0.12); }
       function jump() {
+        if (s.y > 0.001 && s.y < 0.07 && s.vy < 0 && !(feat.dj && s.jumps < 2)) { s.buffer = s.t; return; } // tapped just before landing: jump on touchdown
         if (s.y <= 0.001) { s.vy = 1.7; s.jumps = 1; }
         else if (feat.dj && s.jumps < 2) { s.vy = 1.45; s.jumps = 2; }
         else return;
@@ -123,7 +124,7 @@
           s.scroll += sp * dt;
           s.speed = speed0 * (1 + Math.min(0.25, inst.progress / Math.max(1, AR_goal()) * 0.25));
           // physics (heights in A.h units)
-          if (s.y > 0 || s.vy > 0) { s.vy -= 4.0 * dt; s.y += s.vy * dt; if (s.y <= 0) { s.y = 0; s.vy = 0; s.jumps = 0; s.landAt = s.t; PG.burst(A.x + FX * A.w, A.y + GY * A.h, 'rgba(210,190,160,0.9)', 7, 90); } }
+          if (s.y > 0 || s.vy > 0) { s.vy -= 4.0 * dt; s.y += s.vy * dt; if (s.y <= 0) { s.y = 0; s.vy = 0; s.jumps = 0; s.landAt = s.t; if (s.t - (s.buffer || -9) < 0.18) { s.buffer = -9; jump(); } PG.burst(A.x + FX * A.w, A.y + GY * A.h, 'rgba(210,190,160,0.9)', 7, 90); } }
           // little dust puffs from her paws while she runs
           if (s.y <= 0 && !s.creep && s.started && Math.random() < dt * 6) s.fx.push({ x: FX - 0.06, y: 0, t: 0, r: 2 + Math.random() * 3 });
           s.fx.forEach(f => { f.t += dt; f.x -= sp * dt * 0.8; f.y += dt * 0.03; }); s.fx = s.fx.filter(f => f.t < 0.6);
@@ -136,8 +137,8 @@
           for (const o of s.objs) {
             o.x -= sp * dt + (o.type === 'dog' ? o.walk * dt : 0);
             // treats use a generous box; obstacles a forgiving one (Ava's body core, 75% of the obstacle)
-            const left = o.type === 'treat' ? FX - 0.09 : FX - 0.05, right = o.type === 'treat' ? FX + 0.11 : FX + 0.06;
-            const hw = (o.w || 0.06) / 2 * (o.type === 'treat' ? 1 : 0.75);
+            const left = o.type === 'treat' ? FX - 0.09 : FX - 0.035, right = o.type === 'treat' ? FX + 0.11 : FX + 0.045;
+            const hw = (o.w || 0.06) / 2 * (o.type === 'treat' ? 1 : o.type === 'dog' ? 0.7 : 0.6);
             const ox0 = o.x - hw, ox1 = o.x + hw;
             const overlap = ox1 > left && ox0 < right;
             if (o.type === 'treat' && !o.got) {
@@ -150,7 +151,7 @@
                 PG.sfx.candy(); PG.buzz(PG.HAP.tick); PG.burst(px, py, '#F5B12E', 8, 140);
               }
             } else if (o.type === 'puddle' && overlap && s.y < 0.02 && !o.hit) { o.hit = true; hurt('puddle', A); }
-            else if ((o.type === 'bush' || o.type === 'cat') && overlap && s.y < o.h * 0.85 && !o.hit) { o.hit = true; hurt(o.type, A); }
+            else if ((o.type === 'bush' || o.type === 'cat') && overlap && s.y < o.h * 0.7 && !o.hit) { o.hit = true; hurt(o.type, A); }
             else if (o.type === 'dog') {
               if (overlap && !o.hit && !crouch) { o.hit = true; inst.stats.dogs++; hurt('dog', A); }
               if (!o.passed && ox1 < left) {

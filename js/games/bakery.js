@@ -68,9 +68,9 @@
     twist: lv => ({ 1: 'Розминка: повільно, 4 шари', 2: 'Нове: начинки й м\'ята', 3: 'Нове: шоколадний бісквіт', 4: 'Нове: шари чергуються', 5: '6 шарів і швидше' }[lv] || 'Швидше на 10%'),
     icon(ctx, x, y, r) { layer(ctx, 'sponge', x, y + r * 0.6, r * 1.6, r * 0.6, 0); layer(ctx, 'cream', x, y, r * 1.6, r * 0.4, 0); topping(ctx, 'cherry', x, y - r * 0.35, r * 1.6, r * 0.5, 0); },
     create(level) {
-      const nLayers = Math.min(4 + Math.floor((level - 1) / 2), 7);
-      const speed = Math.min(0.5 + (level - 1) * 0.06, 1.1);
-      const tol = Math.max(0.2 - (level - 1) * 0.012, 0.11); // max offset as a fraction of cake width before it falls
+      const nLayers = Math.min(5 + Math.floor((level - 1) / 2), 8);
+      const speed = Math.min(0.68 + (level - 1) * 0.09, 1.4);
+      const tol = Math.max(0.17 - (level - 1) * 0.014, 0.09); // max offset as a fraction of cake width before it falls
       const s = { t: 0, order: recipe(level, nLayers), cake: [], cur: null, slips: 0, falling: [], shelf: [], doneAt: -9, wobble: 0, beg: 0, hintAt: -9, wrongI: -1 };
       const inst = { progress: 0, over: null, stats: { level, slips: 0, perfect: 0 } };
       inst._s = s;

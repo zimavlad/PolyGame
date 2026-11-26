@@ -28,8 +28,8 @@
     create(level) {
       const L = level;
       const goalN = Math.min(3 + Math.floor((L - 1) / 2), 7);
-      const R = Math.max(0.085 - (L - 1) * 0.006, 0.05); // find radius in arena widths
-      const perBone = Math.max(28 - (L - 1) * 2.2, 13);
+      const R = Math.max(0.075 - (L - 1) * 0.006, 0.045); // find radius in arena widths
+      const perBone = Math.max(20 - (L - 1) * 1.8, 10);
       const s = {
         t: 0, ax: 0.5, ay: 0.62, tx: 0.5, ty: 0.62, dir: 1, moving: false, still: 0, heat: 0, bone: null, decoy: null,
         dig: 0, digAt: -9, found: [], wisps: [], rings: [], nextBuzz: 0, time: goalN * perBone, cat: null, catMove: 6, scaredUntil: 0, celebrate: -9, sockAt: -9

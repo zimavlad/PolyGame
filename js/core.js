@@ -52,13 +52,11 @@ function audioInit() {
         const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200; lp.Q.value = 0.3;
         MASTER = AC.createGain(); MASTER.gain.value = 0.85;
         MASTER.connect(lp); lp.connect(AC.destination);
-        // a small soft room: a short synthetic reverb tail makes the synth notes warmer and less "beepy"
+        // a soft room without a convolver (that runs non-stop and costs a phone CPU): two short quiet echoes
         try {
-          const len = Math.floor(AC.sampleRate * 1.1), ir = AC.createBuffer(2, len, AC.sampleRate);
-          for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
-          const rev = AC.createConvolver(); rev.buffer = ir;
-          const wet = AC.createGain(); wet.gain.value = 0.16;
-          MASTER.connect(rev); rev.connect(wet); wet.connect(lp);
+          const d1 = AC.createDelay(0.5), d2 = AC.createDelay(0.5), g1 = AC.createGain(), g2 = AC.createGain();
+          d1.delayTime.value = 0.09; d2.delayTime.value = 0.17; g1.gain.value = 0.13; g2.gain.value = 0.07;
+          MASTER.connect(d1); d1.connect(g1); g1.connect(lp); MASTER.connect(d2); d2.connect(g2); g2.connect(lp);
         } catch (e) {}
       }
     }
@@ -251,7 +249,7 @@ let W = 1, H = 1, DPR = 1;
 function resize() {
   const r = cv.getBoundingClientRect();
   W = Math.max(1, r.width); H = Math.max(1, r.height);
-  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  DPR = Math.min(window.devicePixelRatio || 1, 2); // 2x looks the same as 3x on a phone and halves the pixels to paint
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   layout();
 }
@@ -1591,6 +1589,11 @@ function render() {
   }
 }
 let lastT = null;
+let lastPaint = 0;
+function coveredByOverlay() {
+  for (const o of OVERLAYS) { const el = $(o); if (el && !el.hidden) return true; }
+  const u = $('update'); return !!(u && !u.hidden);
+}
 function frame(ms) {
   const t = ms / 1000;
   const raw = lastT == null ? 0 : t - lastT;
@@ -1603,7 +1606,10 @@ function frame(ms) {
     }
   }
   lastT = t; now = t;
-  try { update(dt); render(); } catch (e) { console.error(e); logErr(e.message, 'frame', 0, 0, e.stack); }
+  // under a menu, the library or a pop-up the canvas is blurred behind glass: repainting it 60 times a second only makes
+  // the phone re-blur it every frame, so paint it a few times a second there
+  const covered = coveredByOverlay();
+  try { update(dt); if (!covered || t - lastPaint > 0.25) { render(); lastPaint = t; } } catch (e) { console.error(e); logErr(e.message, 'frame', 0, 0, e.stack); }
   requestAnimationFrame(frame);
 }
 

@@ -8,7 +8,8 @@
   const CAP = 4;
   const COLS = ['#F2615E', '#F5B12E', '#22B59B', '#7765EE', '#3E9BF0', '#F47FB0', '#8BC34A', '#FF8A3D'];
   const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); const f = v => Math.round(clamp(v * k, 0, 255)); return `rgb(${f(n >> 16 & 255)},${f(n >> 8 & 255)},${f(n & 255)})`; };
-  const spec = lv => ({ colors: Math.min(2 + lv, 8), empty: lv === 4 || lv >= 9 ? 1 : 2 });
+  // level 1 already has four colours; every third level from 4 leaves only one empty bolt
+const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0), 8), empty: lv >= 4 && lv % 3 === 1 ? 1 : 2 });
 
   // ---- puzzle logic ----
   const topRun = b => { if (!b.length) return 0; const c = b[b.length - 1]; let n = 0; for (let i = b.length - 1; i >= 0 && b[i] === c; i--) n++; return n; };
@@ -77,7 +78,7 @@
     rush: false,
     howto: ['Тапни болт — гайки підкрутяться вгору', 'Тапни інший — перекрутяться туди, якщо колір той самий'],
     goal: lv => ({ count: spec(lv).colors, unit: 'болтів' }),
-    twist: lv => ({ 1: 'Розминка: 3 кольори', 2: 'Нове: 4 кольори', 3: '5 кольорів', 4: 'Нове: лише один порожній болт', 5: '7 кольорів, два порожні', 6: '8 кольорів' }[lv] || (spec(lv).empty === 1 ? 'Один порожній болт' : 'Вісім кольорів')),
+    twist: lv => lv === 1 ? 'Розминка: 4 кольори' : spec(lv).empty === 1 ? `Лише один порожній болт · ${spec(lv).colors} кольори` : `${spec(lv).colors} кольорів`,
     icon,
     create(level) {
       const st = deal(level), n = st.length;
@@ -152,18 +153,27 @@
           s.land = s.land.filter(l => s.t - l.t < 0.4);
         },
         draw(ctx, A) {
-          const bg = PG.sprite('img/bolts/bg.webp');
-          if (bg) { const k = Math.max(A.w / bg.naturalWidth, A.h / bg.naturalHeight); ctx.drawImage(bg, A.x + (A.w - bg.naturalWidth * k) / 2, A.y + (A.h - bg.naturalHeight * k) / 2, bg.naturalWidth * k, bg.naturalHeight * k); ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(A.x, A.y, A.w, A.h); }
+          const g = lay(A), boltIm = PG.sprite('img/bolts/bolt.webp'), board = PG.sprite('img/bolts/board.webp'), bg = PG.sprite('img/bolts/bg.webp');
+          const nutH = g.nw * NUT_AR * SQUASH;
+          // the wall and the shelves never move: paint them once into a cached layer
+          const key = `${A.w}x${A.h}x${PG.layout ? 1 : 0}`;
+          if (bg && board && (!s.cache || s.cacheKey !== key)) {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2), c = document.createElement('canvas');
+            c.width = Math.round(A.w * dpr); c.height = Math.round(A.h * dpr);
+            const x = c.getContext('2d'); x.scale(dpr, dpr);
+            const k = Math.max(A.w / bg.naturalWidth, A.h / bg.naturalHeight);
+            x.drawImage(bg, (A.w - bg.naturalWidth * k) / 2, (A.h - bg.naturalHeight * k) / 2, bg.naturalWidth * k, bg.naturalHeight * k);
+            x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(0, 0, A.w, A.h);
+            for (let r = 0; r < g.rows; r++) {
+              const p = g.pos.find(q => q.row === r); if (!p) continue;
+              const w = Math.min(A.w - 12, g.slot * p.cnt + 20), h = w * board.naturalHeight / board.naturalWidth;
+              x.drawImage(board, (A.w - w) / 2, p.base - A.y - h * 0.3, w, h);
+            }
+            s.cache = c; s.cacheKey = key;
+          }
+          if (s.cache && s.cacheKey === key) ctx.drawImage(s.cache, A.x, A.y, A.w, A.h);
           else { ctx.fillStyle = '#DCE6F7'; ctx.fillRect(A.x, A.y, A.w, A.h); }
           txt(String(inst.progress), A.x + A.w / 2, A.y + 34, 40, 'rgba(60,80,140,0.35)', { font: FD });
-          const g = lay(A), boltIm = PG.sprite('img/bolts/bolt.webp'), board = PG.sprite('img/bolts/board.webp');
-          const nutH = g.nw * NUT_AR * SQUASH;
-          // shelves: the nuts stand in the middle of the top surface, not on its front edge
-          for (let r = 0; r < g.rows; r++) {
-            const p = g.pos.find(q => q.row === r); if (!p) continue;
-            const w = Math.min(A.w - 12, g.slot * p.cnt + 20), h = board ? w * board.naturalHeight / board.naturalWidth : 20;
-            if (board) ctx.drawImage(board, A.x + (A.w - w) / 2, p.base - h * 0.3, w, h); else { ctx.fillStyle = '#C08A5B'; ctx.fillRect(A.x + (A.w - w) / 2, p.base, w, 16); }
-          }
           const boltW = boltIm ? g.nw * 0.3 / 78 * boltIm.naturalWidth : g.nw * 0.3, boltH = boltIm ? boltW * boltIm.naturalHeight / boltIm.naturalWidth : g.rodH;
           const boltTop = base => base - boltH - g.st * 0.3;
           const drawBolt = (x, base, clipY) => {
@@ -200,7 +210,7 @@
             if (s.done.has(i)) {
               const k = Math.min(1, doneK / 0.4), sx = x, sy = boltTop(p.base) + boltW * 0.32;
               const r = 8 * PG.easeOutBack(k) * (1 + 0.08 * Math.sin(s.t * 5 + i));
-              ctx.save(); ctx.shadowColor = 'rgba(245,177,46,0.8)'; ctx.shadowBlur = 10; ctx.fillStyle = '#F5B12E'; ctx.beginPath();
+              ctx.save(); ctx.fillStyle = 'rgba(245,177,46,0.25)'; ctx.beginPath(); ctx.arc(sx, sy, r * 1.7, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#F5B12E'; ctx.beginPath();
               for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5 + s.t * 0.6, rr = j % 2 ? r * 0.45 : r; ctx.lineTo(sx + Math.cos(a) * rr, sy + Math.sin(a) * rr); }
               ctx.closePath(); ctx.fill(); ctx.restore();
             }

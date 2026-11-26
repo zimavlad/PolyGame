@@ -302,7 +302,7 @@ $('restart').addEventListener('click', () => {
 });
 
 /* ================= BIG UPDATE pop-up ================= */
-const UPDATE_KEY = 'big-ava-1';
+const UPDATE_KEY = 'big-ava-2'; // bumped when the update grows, so everyone sees what is new
 function showUpdate() {
   const el = $('update'); if (!el) return;
   const conf = $('updConf'); conf.innerHTML = '';
@@ -324,19 +324,22 @@ $('updGo').addEventListener('click', () => {
   openLibrary();
   requestAnimationFrame(() => { const n = $('libNew'); if (n) n.scrollIntoView({ block: 'start' }); });
 });
-// Ava in the menu: sits and wags (8-frame cycle); a tap makes her hop with joy and bark
-const MENU_ANIM = { idle: [], hop: [] };
-['idle', 'hop'].forEach(k => { for (let i = 0; i < 8; i++) { const im = new Image(); im.src = `img/ava/anim/${k}_${i}.webp?v=${PG.BUILD}`; MENU_ANIM[k].push(im); } });
-let menuHopUntil = 0, menuFrame = 0;
-setInterval(() => {
-  const el = $('menuAva'); if (!el || $('menu').hidden) return;
-  const hop = Date.now() < menuHopUntil, set = hop ? MENU_ANIM.hop : MENU_ANIM.idle;
-  menuFrame = (menuFrame + 1) % 8;
-  const im = set[menuFrame]; if (im.complete && im.naturalWidth) el.src = im.src;
-}, 130);
+// Ava in the menu: sits and wags (her idle cycle); a tap makes her hop with joy and bark
+let menuHopAt = -9;
+(function menuAva() {
+  const cv = $('menuAva');
+  if (cv && !$('menu').hidden) {
+    const c = cv.getContext('2d'), t = performance.now() / 1000;
+    c.clearRect(0, 0, cv.width, cv.height);
+    c.save(); c.scale(cv.width / 128, cv.height / 128);
+    PG.ava.draw(c, 64, 124, 70, { pose: t - menuHopAt < 1.1 ? 'hop' : 'idle', t, shadow: false });
+    c.restore();
+  }
+  requestAnimationFrame(menuAva);
+})();
 $('menuAva').addEventListener('click', e => {
   const im = e.currentTarget; im.classList.remove('hop'); void im.offsetWidth; im.classList.add('hop');
-  menuHopUntil = Date.now() + 1100; menuFrame = 0;
+  menuHopAt = performance.now() / 1000;
   if (PG.tone) { PG.tone(430, 0.09, 'square', 0.05, 0, 0.55); PG.tone(390, 0.11, 'square', 0.05, 0.13, 0.5); }
   PG.buzz(PG.HAP.double);
 });

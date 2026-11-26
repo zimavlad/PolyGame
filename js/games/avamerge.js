@@ -16,13 +16,13 @@
     accent: ACCENT,
     thumb: 'img/treats/chicken.webp',
     howto: ['Веди пальцем і відпусти — смаколик падає', 'Два однакові злипаються в більший'],
-    goal: lv => ({ count: Math.min(10 + (lv - 1) * 3, 40), unit: 'злиттів' }),
+    goal: lv => ({ count: Math.min(14 + (lv - 1) * 4, 50), unit: 'злиттів' }),
     twist: lv => ({ 1: 'Розминка: просторий кошик', 2: 'Більша ціль', 3: 'Нове: падають і сосиски', 4: 'Кошик вужчий', 5: "Нове: падають і м'ячики" }[lv] || 'Кошик вужчий, ціль більша'),
     icon(ctx, x, y, r) { PG.drawSprite(ctx, 'img/treats/chicken.webp', x, y, r * 1.5); },
     create(level) {
       const L = level;
-      const maxSpawn = L >= 5 ? 3 : L >= 3 ? 2 : 1;
-      const narrow = L >= 4 ? Math.min(0.12, 0.03 * (L - 3)) : 0;
+      const maxSpawn = L >= 3 ? 3 : L >= 2 ? 2 : 1;
+      const narrow = L >= 2 ? Math.min(0.16, 0.035 * (L - 1)) : 0;
       const s = { t: 0, items: [], aim: 0.5, cur: randi(maxSpawn + 1), next: randi(maxSpawn + 1), cool: 0, danger: 0, pops: [], idc: 0, sleepAt: -9, cheerAt: -9, best: 0 };
       const inst = { progress: 0, over: null, stats: { level: L, drops: 0, top: 0 } };
       inst._s = s;
