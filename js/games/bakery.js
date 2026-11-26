@@ -63,7 +63,7 @@
     title: 'Пекарня',
     family: 'Ава',
     accent: ACCENT,
-    howto: ['Обери шар, як на замовленні', 'Тапни, коли він над тортом'],
+    howto: ['Обери внизу шар, який потрібен', 'Тапни, коли він їде над тортом'],
     goal: lv => ({ count: Math.min(2 + Math.floor((lv - 1) / 2), 6), unit: 'тортів' }),
     twist: lv => ({ 1: 'Розминка: повільно, 4 шари', 2: 'Нове: начинки й м\'ята', 3: 'Нове: шоколадний бісквіт', 4: 'Нове: шари чергуються', 5: '6 шарів і швидше' }[lv] || 'Швидше на 10%'),
     icon(ctx, x, y, r) { layer(ctx, 'sponge', x, y + r * 0.6, r * 1.6, r * 0.6, 0); layer(ctx, 'cream', x, y, r * 1.6, r * 0.4, 0); topping(ctx, 'cherry', x, y - r * 0.35, r * 1.6, r * 0.5, 0); },
@@ -71,7 +71,7 @@
       const nLayers = Math.min(4 + Math.floor((level - 1) / 2), 7);
       const speed = Math.min(0.5 + (level - 1) * 0.06, 1.1);
       const tol = Math.max(0.2 - (level - 1) * 0.012, 0.11); // max offset as a fraction of cake width before it falls
-      const s = { t: 0, order: recipe(level, nLayers), cake: [], cur: null, slips: 0, falling: [], shelf: [], doneAt: -9, wobble: 0, beg: 0 };
+      const s = { t: 0, order: recipe(level, nLayers), cake: [], cur: null, slips: 0, falling: [], shelf: [], doneAt: -9, wobble: 0, beg: 0, hintAt: -9, wrongI: -1 };
       const inst = { progress: 0, over: null, stats: { level, slips: 0, perfect: 0 } };
       inst._s = s;
       function newShelf() {
@@ -100,7 +100,8 @@
           // shelf buttons
           if (y > g.shelfY - 34) {
             const i = clamp(Math.floor((x - A.x) / (A.w / 4)), 0, 3), kind = s.shelf[i];
-            if (kind !== s.order[s.cake.length]) { slip(A, 'Не той шар!'); return; }
+            // a wrong pick only teaches: the right layer lights up, no slip
+            if (kind !== s.order[s.cake.length]) { s.hintAt = s.t; s.wrongI = i; PG.sfx.bad(); PG.buzz(PG.HAP.double); return; }
             s.cur = { kind, x: 0, dir: 1, born: s.t }; PG.sfx.pick(); PG.buzz(PG.HAP.tick); return;
           }
           if (!s.cur) return;
@@ -137,10 +138,10 @@
           ctx.fillStyle = '#C98B5E'; ctx.fillRect(A.x, g.plateY + 8, A.w, A.h * 0.1); ctx.fillStyle = '#A9714A'; ctx.fillRect(A.x, g.plateY + 8, A.w, 6);
           txt(String(inst.progress), A.x + A.w / 2, A.y + A.h * 0.47, Math.min(90, A.w * 0.24), 'rgba(236,111,156,0.16)', { font: FD });
           // order card
-          const ox = A.x + 12, oy = A.y + 12, ow = 92, oh = 112;
+          const ox = A.x + 12, oy = A.y + 12, ow = 104, oh = 132;
           ctx.fillStyle = '#FFFFFF'; PG.rrect(ox, oy, ow, oh, 14); ctx.fill(); ctx.strokeStyle = 'rgba(236,111,156,0.35)'; ctx.lineWidth = 2; ctx.stroke();
           txt('ЗАМОВЛЕННЯ', ox + ow / 2, oy + 13, 9, ACCENT, { font: FB, weight: 900 });
-          let yy = oy + oh - 12; const mw = ow * 0.62, mb = 9;
+          let yy = oy + oh - 12; const mw = ow * 0.62, mb = 11;
           s.order.forEach((k, i) => { const h = layerH(k, mb * 1.4); ctx.globalAlpha = i < s.cake.length ? 0.35 : 1; layer(ctx, k, ox + ow / 2, yy, mw, h, s.t); ctx.globalAlpha = 1; if (i === s.cake.length) { ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.moveTo(ox + 8, yy - h / 2 - 4); ctx.lineTo(ox + 14, yy - h / 2); ctx.lineTo(ox + 8, yy - h / 2 + 4); ctx.fill(); } yy -= h + 1; });
           // Ava hoping for crumbs
           PG.ava.draw(ctx, A.x + A.w - 52, g.plateY + 6, A.w * 0.17, { pose: s.doneAt > 0 && s.t - s.doneAt < 1.2 ? 'jump' : 'happy', t: s.t, shadow: false });
@@ -164,13 +165,23 @@
           const bw = A.w / 4;
           for (let i = 0; i < 4; i++) {
             const k = s.shelf[i], bx = A.x + i * bw + 6, by = g.shelfY - 30, w = bw - 12, h = 62;
-            ctx.fillStyle = s.cur && s.cur.kind === k ? '#FFE3EE' : '#FFFFFF'; PG.rrect(bx, by, w, h, 14); ctx.fill();
-            ctx.strokeStyle = 'rgba(236,111,156,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+            const need = !s.cur && s.doneAt < 0 && k === s.order[s.cake.length] && (level <= 2 || s.t - s.hintAt < 3);
+            const wrong = i === s.wrongI && s.t - s.hintAt < 0.4;
+            const bob = need ? Math.sin(s.t * 6) * 3 : wrong ? Math.sin((s.t - s.hintAt) * 50) * 3 : 0;
+            ctx.save(); ctx.translate(wrong ? bob : 0, need ? -Math.abs(bob) : 0);
+            ctx.fillStyle = s.cur && s.cur.kind === k ? '#FFE3EE' : need ? '#FFF3F8' : '#FFFFFF'; PG.rrect(bx, by, w, h, 14); ctx.fill();
+            ctx.strokeStyle = need ? rgba(ACCENT, 0.6 + 0.4 * Math.sin(s.t * 6)) : 'rgba(236,111,156,0.3)'; ctx.lineWidth = need ? 4 : 2; ctx.stroke();
             if (k) { layer(ctx, k, bx + w / 2, by + h * 0.62, w * 0.7, layerH(k, 20), s.t); txt(k.startsWith('top:') ? { cherry: 'вишні', strawberry: 'полуниці', candles: 'свічки' }[k.slice(4)] : KINDS[k].name, bx + w / 2, by + h - 9, 10, '#8A5A6E', { font: FB, weight: 900 }); }
+            ctx.restore();
           }
           // slips
           for (let i = 0; i < 3; i++) { ctx.fillStyle = i < 3 - s.slips ? ACCENT : 'rgba(236,111,156,0.2)'; ctx.beginPath(); ctx.arc(A.x + A.w - 20 - i * 18, A.y + 20, 6, 0, Math.PI * 2); ctx.fill(); }
-          if (!s.cur && s.doneAt < 0 && !inst.over) txt('Обери шар ↓', A.x + A.w / 2, g.slideY, 15, rgba('#8A5A6E', 0.6 + 0.4 * Math.sin(s.t * 5)), { font: FB, weight: 900 });
+          if (!s.cur && s.doneAt < 0 && !inst.over) {
+            const need = s.order[s.cake.length], nm = need.startsWith('top:') ? { cherry: 'вишні', strawberry: 'полуниці', candles: 'свічки' }[need.slice(4)] : KINDS[need].name;
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; PG.rrect(A.x + A.w / 2 - 92, g.slideY - 24, 184, 48, 24); ctx.fill();
+            txt('Потрібно: ' + nm, A.x + A.w / 2, g.slideY - 4, 16, '#8A3A5E', { font: FD, max: 170 });
+            txt('обери внизу ↓', A.x + A.w / 2, g.slideY + 14, 11, rgba('#8A5A6E', 0.6 + 0.4 * Math.sin(s.t * 5)), { font: FB, weight: 900 });
+          } else if (s.cur && !inst.over) txt('Тапни, коли шар над тортом!', A.x + A.w / 2, g.slideY - 34, 13, rgba('#8A3A5E', 0.6 + 0.4 * Math.sin(s.t * 5)), { font: FB, weight: 900 });
         }
       });
       return inst;

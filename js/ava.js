@@ -29,10 +29,12 @@ function draw(ctx, x, y, size, o = {}) {
   let name = pose, dy = 0, dx = 0, sx = 1, sy = 1, rot = 0;
   switch (pose) {
     case 'run': { const f = Math.floor(t * 18) % 8; name = 'run' + f; break; }
-    case 'walk': { const f = Math.floor(t * 10) % 8; name = 'run' + f; break; }
+    case 'walk': { const f = Math.floor(t * 13) % 8; name = 'run' + f; dy = -Math.abs(Math.sin(t * 13 * Math.PI / 4)) * size * 0.02; break; }
+    case 'leapUp': name = 'run0'; break;    // stretched gallop frame, rising
+    case 'leapDown': name = 'run5'; break;  // reaching for the ground
     case 'jump': dy = -Math.abs(Math.sin(t * 5)) * size * 0.28; rot = Math.sin(t * 10) * 0.04; break;
     case 'scared': dx = Math.sin(t * 55) * size * 0.006; sy = 0.98 + Math.sin(t * 3) * 0.01; break;
-    case 'sniff': rot = Math.sin(t * 9) * 0.015; dx = Math.sin(t * 1.3) * size * 0.02; break;
+    case 'sniff': rot = Math.sin(t * 9) * 0.02 + Math.sin(t * 2.3) * 0.02; dy = -Math.abs(Math.sin(t * 9)) * size * 0.012; dx = Math.sin(t * 1.3) * size * 0.02; break;
     case 'stalk': dx = Math.sin(t * 1.6) * size * 0.03; dy = Math.abs(Math.sin(t * 3.2)) * size * -0.008; break;
     case 'sleep': sy = 1 + Math.sin(t * 2) * 0.025; sx = 1 - Math.sin(t * 2) * 0.008; break;
     default: sy = 1 + Math.sin(t * 2.2) * 0.012; // breathing

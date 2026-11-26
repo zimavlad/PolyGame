@@ -21,7 +21,7 @@
     family: 'Ава',
     accent: ACCENT,
     thumb: 'img/ava/sniff.webp',
-    howto: ['Тапни на траву — Ава побіжить нюхати', 'Гаряче? Телефон тремтить частіше. Зупинись — Ава копає'],
+    howto: ['Тапай по траві: кільце покаже, тепло чи холодно', 'Що гарячіше — то частіше тремтить. Ава копає, коли стане на місце'],
     goal: lv => ({ count: Math.min(3 + Math.floor((lv - 1) / 2), 7), unit: 'кісточок' }),
     twist: lv => ({ 1: 'Розминка: багато часу', 2: 'Кісточки глибше: шукай точніше', 3: 'Нове: смердюча шкарпетка-обманка', 4: 'Нове: сусідський кіт', 5: 'Менше часу', 6: 'Нове: без шкали — тільки нюх і вібрація' }[lv] || 'Менше часу, точніше'),
     icon(ctx, x, y, r) { if (!PG.ava.draw(ctx, x, y + r * 0.6, r * 1.5, { pose: 'sniff', shadow: false })) PG.ava.bone(ctx, x, y, r * 1.2, -0.4); },
@@ -32,7 +32,7 @@
       const perBone = Math.max(28 - (L - 1) * 2.2, 13);
       const s = {
         t: 0, ax: 0.5, ay: 0.62, tx: 0.5, ty: 0.62, dir: 1, moving: false, still: 0, heat: 0, bone: null, decoy: null,
-        dig: 0, digAt: -9, found: [], wisps: [], nextBuzz: 0, time: goalN * perBone, cat: null, catMove: 6, scaredUntil: 0, celebrate: -9, sockAt: -9
+        dig: 0, digAt: -9, found: [], wisps: [], rings: [], nextBuzz: 0, time: goalN * perBone, cat: null, catMove: 6, scaredUntil: 0, celebrate: -9, sockAt: -9
       };
       const inst = { progress: 0, over: null, stats: { level: L, taps: 0, socks: 0, cats: 0 } };
       inst._s = s;
@@ -51,7 +51,11 @@
           const A = PG.arena; if (s.dig > 0 || PG.now < 0) return;
           inst.stats.taps++;
           s.tx = clamp((x - A.x) / A.w, FIELD.x0, FIELD.x1); s.ty = clamp((y - A.y) / A.h, FIELD.y0, FIELD.y1);
-          PG.sfx.pick();
+          // the nose already feels the spot you point at: a coloured ring there and taps in your hand, hotter = more
+          const h = Math.max(heatAt(s.bone, s.tx, s.ty), heatAt(s.decoy, s.tx, s.ty) * 0.92);
+          s.rings.push({ x: s.tx, y: s.ty, h, t: s.t });
+          PG.buzz(h > 0.85 ? [12, 50, 12, 50, 12, 50, 14] : h > 0.62 ? [10, 60, 10, 60, 12] : h > 0.38 ? [9, 80, 9] : 8);
+          sniffSound(h);
         },
         move(x, y) { const A = PG.arena; if (s.dig > 0) return; s.tx = clamp((x - A.x) / A.w, FIELD.x0, FIELD.x1); s.ty = clamp((y - A.y) / A.h, FIELD.y0, FIELD.y1); },
         idle(dt) { s.t += dt; },
@@ -73,7 +77,7 @@
             return;
           }
           // walking
-          const dx = s.tx - s.ax, dy = (s.ty - s.ay) * 1.35, d = hyp(dx, dy), sp = (scared ? 0.55 : 0.36) * dt;
+          const dx = s.tx - s.ax, dy = (s.ty - s.ay) * 1.35, d = hyp(dx, dy), sp = (scared ? 0.7 : 0.58) * dt;
           if (d > 0.01) { s.moving = true; s.still = 0; const k = Math.min(1, sp / d); s.ax += dx * k; s.ay += dy / 1.35 * k; if (Math.abs(dx) > 0.004) s.dir = dx > 0 ? 1 : -1; }
           else { s.moving = false; s.still += dt; }
           // cat: Ava backs away with her ears flat
@@ -105,6 +109,14 @@
           else { ctx.fillStyle = '#8CCB6A'; ctx.fillRect(A.x, A.y, A.w, A.h); }
           // dug holes of bones already found
           s.found.forEach(f => { ctx.fillStyle = 'rgba(92,60,34,0.55)'; ctx.beginPath(); ctx.ellipse(A.x + f.x * A.w, A.y + f.y * A.h, A.w * 0.04, A.w * 0.018, 0, 0, Math.PI * 2); ctx.fill(); });
+          // heat rings where you tapped
+          s.rings = s.rings.filter(r => s.t - r.t < 1.4);
+          s.rings.forEach(r => {
+            const p = (s.t - r.t) / 1.4, col = r.h > 0.85 ? '#F2483E' : r.h > 0.62 ? '#F58A2E' : r.h > 0.38 ? '#F5C02E' : '#5DB7F2';
+            ctx.strokeStyle = rgba(col, 0.9 * (1 - p)); ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.ellipse(A.x + r.x * A.w, A.y + r.y * A.h, 10 + p * 34, (10 + p * 34) * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+            if (p < 0.6) txt(r.h > 0.85 ? 'Гаряче!' : r.h > 0.62 ? 'Тепліше' : r.h > 0.38 ? 'Тепло' : 'Холодно', A.x + r.x * A.w, A.y + r.y * A.h - 26 - p * 20, 13, rgba('#27303F', 1 - p / 0.6), { font: FB, weight: 900 });
+          });
           // target marker
           if (s.moving) { ctx.strokeStyle = rgba('#FFFFFF', 0.8); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(A.x + s.tx * A.w, A.y + s.ty * A.h, 12, 6, 0, 0, Math.PI * 2); ctx.stroke(); }
           // wisps: blue when cold, red when hot

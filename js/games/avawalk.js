@@ -51,7 +51,7 @@
     accent: ACCENT,
     thumb: 'img/ava/run2.webp',
     howto: ['Тапни — Ава стрибне', 'Собака попереду? Тримай палець — Ава підкрадеться'],
-    goal: lv => ({ count: Math.min(8 + (lv - 1) * 2, 30), unit: 'смаколиків' }),
+    goal: lv => ({ count: Math.min(16 + (lv - 1) * 3, 45), unit: 'смаколиків' }),
     twist: lv => ({ 1: 'Розминка: калюжі й смаколики', 2: 'Нове: кущі', 3: 'Нове: інші собаки — тримай палець', 4: 'Нове: пляж і швидше', 5: 'Нове: кіт — стрибни двічі в повітрі', 6: 'Нове: подвійні калюжі' }[lv] || (lv % 2 ? 'Швидше на 8%' : 'Більше собак і котів')),
     icon(ctx, x, y, r) { if (!PG.ava.draw(ctx, x, y + r * 0.55, r * 1.3, { pose: 'run', t: PG.now, shadow: false })) { ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2); ctx.fill(); } },
     create(level) {
@@ -79,15 +79,15 @@
         }
         if (feat.cat && r < 0.36) { s.objs.push({ type: 'cat', x, w: 0.14, h: 0.15 }); s.objs.push({ type: 'treat', x: x + 0.02, alt: 0.42, k: pick(TREATS) }); s.gap = 0.8; return; }
         if (feat.bush && r < 0.55) { s.objs.push({ type: 'bush', x, w: 0.14, h: 0.12 }); s.objs.push({ type: 'treat', x: x, alt: 0.24, k: pick(TREATS) }); s.gap = rand(0.6, 0.9); return; }
-        if (r < 0.8) {
+        if (r < 0.86) {
           const n = feat.double && Math.random() < 0.4 ? 2 : 1;
           for (let i = 0; i < n; i++) s.objs.push({ type: 'puddle', x: x + i * 0.2, w: 0.15 });
           s.objs.push({ type: 'treat', x: x + (n - 1) * 0.1, alt: 0.2, k: pick(TREATS) });
           s.gap = rand(0.55, 0.85) + (n - 1) * 0.2; return;
         }
-        // a little trail of treats on the ground
-        for (let i = 0; i < 3; i++) s.objs.push({ type: 'treat', x: x + i * 0.11, alt: 0.03, k: pick(TREATS) });
-        s.gap = 0.6;
+        // now and then a short trail of treats on the ground
+        for (let i = 0; i < 2; i++) s.objs.push({ type: 'treat', x: x + i * 0.12, alt: 0.03, k: pick(TREATS) });
+        s.gap = 0.7;
       }
       function dogAhead() { return s.objs.find(o => o.type === 'dog' && !o.passed && o.x - FX < 0.8 && o.x + o.w > FX - 0.12); }
       function jump() {
@@ -123,7 +123,10 @@
           s.scroll += sp * dt;
           s.speed = speed0 * (1 + Math.min(0.25, inst.progress / Math.max(1, AR_goal()) * 0.25));
           // physics (heights in A.h units)
-          if (s.y > 0 || s.vy > 0) { s.vy -= 4.0 * dt; s.y += s.vy * dt; if (s.y <= 0) { s.y = 0; s.vy = 0; s.jumps = 0; PG.buzz(PG.HAP.tick); } }
+          if (s.y > 0 || s.vy > 0) { s.vy -= 4.0 * dt; s.y += s.vy * dt; if (s.y <= 0) { s.y = 0; s.vy = 0; s.jumps = 0; s.landAt = s.t; PG.burst(A.x + FX * A.w, A.y + GY * A.h, 'rgba(210,190,160,0.9)', 7, 90); } }
+          // little dust puffs from her paws while she runs
+          if (s.y <= 0 && !s.creep && s.started && Math.random() < dt * 6) s.fx.push({ x: FX - 0.06, y: 0, t: 0, r: 2 + Math.random() * 3 });
+          s.fx.forEach(f => { f.t += dt; f.x -= sp * dt * 0.8; f.y += dt * 0.03; }); s.fx = s.fx.filter(f => f.t < 0.6);
           if (s.creep && !dogAhead()) { if (s.holdAt < 0) s.creep = false; }
           // spawning
           s.gap -= sp * dt;
@@ -200,13 +203,17 @@
           else if (inst.over && inst.over.won) pose = 'jump';
           else if (hurting || (inst.over && !inst.over.won)) pose = 'scared';
           else if (s.creep && s.y <= 0) pose = 'stalk';
-          if (!blink) PG.ava.draw(ctx, ax, gy - lift, A.w * 0.2, { pose, t: s.t });
+          s.fx.forEach(f => { ctx.fillStyle = `rgba(214,196,168,${0.55 * (1 - f.t / 0.6)})`; ctx.beginPath(); ctx.arc(A.x + f.x * A.w, gy - f.y * A.h - 2, f.r + f.t * 10, 0, Math.PI * 2); ctx.fill(); });
+          // in the air she keeps her stretched gallop frame; on landing a quick squash
+          if (pose === 'run' && s.y > 0.01) pose = s.vy > 0 ? 'leapUp' : 'leapDown';
+          const land = s.landAt != null ? Math.min(1, (s.t - s.landAt) / 0.18) : 1, sq = 1 - Math.sin(land * Math.PI) * 0.1;
+          if (!blink) { ctx.save(); ctx.translate(ax, gy - lift); ctx.scale(1 / Math.sqrt(sq), sq); ctx.rotate(s.y > 0.01 ? -s.vy * 0.06 : 0); PG.ava.draw(ctx, 0, 0, A.w * 0.2, { pose, t: s.t }); ctx.restore(); }
           // hearts
           for (let i = 0; i < 3; i++) heart(ctx, A.x + 22 + i * 26, A.y + 24, 22, i < s.hearts);
         }
       });
       // goal for the in-round speed ramp
-      const goalN = Math.min(8 + (L - 1) * 2, 30);
+      const goalN = Math.min(16 + (L - 1) * 3, 45);
       function AR_goal() { return goalN; }
       return inst;
     }
