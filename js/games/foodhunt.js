@@ -176,8 +176,8 @@
     family: 'Головоломка',
     accent: ACCENT,
     howto: ['Тапни мурах: вони з’їдять свій колір', 'Хто не доїв, чекає в слоті'],
-    goal: lv => ({ count: sizeOf(artOf(lv)), unit: 'шматочків' }),
-    twist: lv => { const a = artOf(lv); if (a.boss) return `Бос-страва: ${a.name}!`; if (lv === 41) return 'Нове: голодніші загони'; if (lv === 71) return 'Нове: п\'ять черг мурах'; return ARTS.indexOf(a) >= 9 ? `Страва: ${a.name}` : ''; },
+    goal: lv => { const a = artOf(lv), n = sizeOf(a); return { count: lv > 40 && n < 70 ? n * 4 : n, unit: 'шматочків' }; },
+    twist: lv => { const a = artOf(lv); if (a.boss) return `Бос-страва: ${a.name}!`; if (lv === 41) return 'Нове: дрібні загони, посипка'; if (lv === 71) return 'Нове: 2 слоти й густа посипка'; return ARTS.indexOf(a) >= 9 ? `Страва: ${a.name}` : ''; },
     icon(ctx, x, y, r) {
       const s = r * 0.42;
       [['r', -1, -1], ['r', 0, -1], ['g', -1, 0], ['r', 0, 0]].forEach(([ch, i, j]) => block(ctx, x - r * 0.72 + (i + 1) * s, y - r * 0.62 + (j + 1) * s, s, ch));
@@ -192,20 +192,45 @@
       // 35-100% later (the burger and the cupcake are the hard ones); a careful player wins them all.
       const tier = lv <= 1 ? 0 : lv <= 2 ? 1 : lv <= 5 ? 2 : lv <= 9 ? 3 : lv <= 40 ? 4 : lv <= 70 ? 5 : 6;
       const D = {
+        // high tiers: small squads (many decisions), few slots, lots of out-of-turn and hungry squads
         queues: [2, 2, 3, 4, 4, 4, 5][tier],
-        slots: [5, 5, 4, 4, 3, 3, 3][tier] + (art.boss ? 1 : 0),
-        chunk: [[12, 18], [10, 16], [10, 18], [12, 22], [14, 24], [14, 26], [16, 28]][tier], // a squad's appetite, in blocks
-        swaps: [0, 1, 3, 3, 4, 6, 7][tier],          // squads moved ahead of their turn
-        merges: [0, 0, 3, 4, 6, 8, 9][tier],         // squads too hungry for one lap
+        slots: [5, 5, 4, 4, 3, 3, 2][tier] + (art.boss ? 1 : 0),
+        chunk: [[12, 18], [10, 16], [10, 18], [12, 22], [9, 16], [6, 11], [5, 9]][tier], // a squad's appetite, in blocks
+        swaps: [0, 1, 3, 3, 5, 10, 16][tier],          // squads moved ahead of their turn
+        merges: [0, 0, 3, 4, 6, 10, 16][tier],          // squads too hungry for one lap
+        marching: tier >= 5 ? 2 : tier >= 4 ? 3 : 6, // squads allowed on the path at once: no spamming at the top
+        sprinkle: [0, 0, 0, 0.08, 0.2, 0.36, 0.5][tier], // share of blocks recoloured as sprinkles, so colours block each other
         mirror: Math.floor((lv - 1) / ARTS.length) % 2 === 1,
         lapSec: lv <= 2 ? 4.2 : 3.8,          // one lap of the snack, whatever its size
         hint: lv <= 2                           // after a pause, point at a squad that can eat right now
       };
       if (api && api.tune) Object.assign(D, api.tune); // balance experiments
-      const H = art.rows.length, W = art.rows[0].length;
+      // at the top tiers a small snack is served double size (every pixel 2×2): same picture, many more decisions
+      let rows = art.rows;
+      if (tier >= 5 && sizeOf(art) < 70) rows = rows.flatMap(r => { const d = [...r].map(ch => ch + ch).join(''); return [d, d]; });
+      const H = rows.length, W = rows[0].length;
       const grid = [];
-      art.rows.forEach(row => { const r = D.mirror ? [...row].reverse() : [...row]; for (let c = 0; c < W; c++) grid.push(r[c] || '.'); });
+      rows.forEach(row => { const r = D.mirror ? [...row].reverse() : [...row]; for (let c = 0; c < W; c++) grid.push(r[c] || '.'); });
       const SH = lapShots(W, H);
+      // sprinkles: small clusters of other colours scattered over the snack. A one-colour banana is trivial (any squad
+      // always finds food); with sprinkles colours hide each other and the order of squads matters.
+      if (D.sprinkle > 0) {
+        const own = [...new Set(grid.filter(ch => ch !== '.'))];
+        const extra = ['r', 'y', 'g', 'p', 's', 'v', 'o'].filter(c => !own.includes(c));
+        const cols = own.concat(shuffle(extra).slice(0, Math.max(0, (tier >= 6 ? 5 : 4) - own.length)));
+        const filled = grid.map((ch, i) => ch !== '.' ? i : -1).filter(i => i >= 0);
+        let target = Math.round(filled.length * D.sprinkle), guard = 0;
+        while (target > 0 && guard++ < 500) {
+          let i = filled[randi(filled.length)];
+          const c = cols[randi(cols.length)]; if (grid[i] === c) continue;
+          const size = 1 + randi(3);
+          for (let k = 0; k < size && target > 0; k++) {
+            if (grid[i] !== '.' && grid[i] !== c) { grid[i] = c; target--; }
+            const nb = [i - 1, i + 1, i - W, i + W].filter(j => j >= 0 && j < grid.length && grid[j] !== '.' && Math.abs((j % W) - (i % W)) <= 1);
+            if (!nb.length) break; i = nb[randi(nb.length)];
+          }
+        }
+      }
 
       // queues: the plan dealt into columns in order (always winnable), then mutations the solver still wins:
       // a squad moved up its queue, or two squads of one colour merged into a hungrier one
@@ -226,7 +251,7 @@
           if (!others.length) continue;
           const [o, b] = others[randi(others.length)];
           // keep at least two squads a queue and appetites within reason
-          if (a.n + b.n > D.chunk[1] * 1.6 || queues.reduce((n, x) => n + x.length, 0) <= D.queues * 2) continue;
+          if (a.n + b.n > D.chunk[1] * (tier >= 5 ? 2.4 : 1.6) || queues.reduce((n, x) => n + x.length, 0) <= D.queues * 2) continue;
           a.n += b.n; o.splice(o.indexOf(b), 1);
         } else {
           if (q.length < 2) continue;
@@ -292,7 +317,7 @@
 
       /* ---- play ---- */
       function launch(sq, from) {
-        if (ants.filter(a => a.state === 'walk').length >= 6) { PG.sfx.tick(); return false; }
+        if (ants.filter(a => a.state === 'walk' || a.state === 'lap').length >= D.marching) { PG.sfx.bad(); PG.buzz(PG.HAP.double); S.busyAt = S.clk; return false; }
         ants.push({ c: sq.c, n: sq.n, from, p: 0, u: 0, k: 0, ph: Math.random() * 6, state: 'walk', ate: 0, seq: ++S.seq });
         inst.stats.launches++; S.idle = 0;
         PG.sfx.pick(); PG.buzz(PG.HAP.tick);
@@ -412,6 +437,11 @@
         // slots
         const full = slots.filter(Boolean).length, warn = full >= D.slots - 1;
         txt(`Слоти ${full}/${D.slots}`, A.x + A.w / 2, V.slotY - V.slot / 2 - 9, 11.5, warn ? PG.BAD : PG.SOFT, { font: FB, weight: 900 });
+        if (S.busyAt != null && S.clk - S.busyAt < 0.9) { // tapped while the path is full
+          const a = 1 - (S.clk - S.busyAt) / 0.9;
+          ctx.fillStyle = `rgba(39,48,63,${0.82 * a})`; rrect(A.x + A.w / 2 - 110, V.slotY - V.slot / 2 - 44, 220, 26, 13); ctx.fill();
+          txt(`Зачекай: на доріжці вже ${D.marching} загони`, A.x + A.w / 2, V.slotY - V.slot / 2 - 31, 12, `rgba(255,255,255,${a})`, { font: FB, weight: 900, max: 210 });
+        }
         for (let j = 0; j < D.slots; j++) {
           const x = V.slotX(j), y = V.slotY, s = slots[j];
           ctx.fillStyle = '#F4E9DC'; rrect(x - V.slot / 2, y - V.slot / 2, V.slot, V.slot, V.slot * 0.26); ctx.fill();
