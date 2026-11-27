@@ -375,7 +375,8 @@ PG.hooks.boot = () => {
   if (q.get('lvl')) { startLevel(Math.max(1, Number(q.get('lvl')) || 1)); return; }
   if (q.has('endless')) { startEndless(); return; }
   showOverlay('menu');
-  if (store.get('polygame.update', '') !== UPDATE_KEY || q.has('update')) setTimeout(showUpdate, 350);
+  // the big pop-up only for those who never saw one; everyone else gets the short news sheet
+  if (!store.get('polygame.update', '') || q.has('update')) setTimeout(showUpdate, 350);
   else setTimeout(() => maybeShowNews(q.has('news')), 350);
 };
 PG.hooks.goalText = g => goalText(g);
