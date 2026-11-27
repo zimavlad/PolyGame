@@ -59,7 +59,13 @@
     boosts: [{ id: 'hearts', icon: '❤️', name: '+2 серця', price: 2 }, { id: 'slow', icon: '🐢', name: 'Повільніше', price: 3 }],
     goal: lv => ({ count: parse(SONGS[(lv - 1) % SONGS.length].notes).length * 2, unit: 'нот' }),
     twist: lv => { const sg = SONGS[(lv - 1) % SONGS.length]; return `«${sg.name}»${lv > 1 ? ' · швидше' : ''}`; },
-    icon(ctx, x, y, r) { for (let i = 0; i < 3; i++) { ctx.fillStyle = i === 1 ? '#27303F' : '#FFFFFF'; ctx.fillRect(x - r + i * r * 0.68, y - r * 0.8, r * 0.6, r * 1.6); } },
+    icon(ctx, x, y, r) { // a little keyboard: four white keys, three black ones, a note above
+      const w = r * 0.5, x0 = x - w * 2, y0 = y - r * 0.35, h = r * 1.15;
+      ctx.fillStyle = '#7765EE'; PG.rrect(x0 - 4, y0 - 4, w * 4 + 8, h + 8, 8); ctx.fill();
+      for (let i = 0; i < 4; i++) { ctx.fillStyle = '#FFFFFF'; PG.rrect(x0 + i * w + 1, y0, w - 2, h, 4); ctx.fill(); }
+      ctx.fillStyle = '#27303F'; for (const i of [1, 2, 3]) { PG.rrect(x0 + i * w - w * 0.28, y0, w * 0.56, h * 0.58, 3); ctx.fill(); }
+      ctx.font = `900 ${r * 0.75}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#7765EE'; ctx.fillText('♪', x + r * 0.55, y - r * 0.72);
+    },
     create(level) {
       // the tune twice: the second time round it is faster
       const song = SONGS[(level - 1) % SONGS.length], once = parse(song.notes), notes = once.concat(once), ln = lanes(notes);

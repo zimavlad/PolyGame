@@ -123,13 +123,14 @@
           ctx.fillStyle = g; ctx.fillRect(A.x, A.y, A.w, A.h);
           ctx.fillStyle = 'rgba(255,255,255,0.3)'; for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) { ctx.beginPath(); ctx.arc(A.x + (i + (j % 2) * 0.5) * A.w / 6, A.y + j * A.h / 8, 3, 0, Math.PI * 2); ctx.fill(); }
           // the ladder up to the goal treat: what you have made so far glows, the goal sits in a ring
-          const ly0 = A.y + A.h * 0.235 - 22, n = target + 1, step = Math.min(30, (A.w - 150) / n), lx0 = A.x + A.w / 2 - (n - 1) * step / 2 + 30;
+          // it sits in the top band between Ava and the "next" box, well above the treat in hand
+          const n = target + 1, lxL = A.x + 100, lxR = A.x + A.w - 74, step = Math.min(30, (lxR - lxL) / n), ly0 = A.y + 34, lx0 = (lxL + lxR) / 2 - (n - 1) * step / 2;
           for (let k = 0; k <= target; k++) {
             const x = lx0 + k * step, got = k <= s.best, isGoal = k === target;
             if (isGoal) { ctx.strokeStyle = rgba(ACCENT, 0.6 + 0.4 * Math.sin(s.t * 5)); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, ly0, step * 0.52, 0, Math.PI * 2); ctx.stroke(); }
             PG.drawSprite(ctx, 'img/treats/' + ITEMS[k] + '.webp', x, ly0, step * (isGoal ? 0.95 : 0.78), { alpha: got ? 1 : 0.28 });
           }
-          txt(`кидків: ${inst.stats.drops}`, A.x + A.w / 2 + 30, ly0 + 22, 11, 'rgba(154,106,68,0.8)', { font: FB, weight: 900 });
+          txt(`кидків: ${inst.stats.drops}`, (lxL + lxR) / 2, ly0 + step * 0.5 + 12, 11, 'rgba(154,106,68,0.8)', { font: FB, weight: 900 });
           // basket
           const bx = box.x, bw = box.w, bt = box.top, bb = box.bottom;
           ctx.fillStyle = 'rgba(160,100,50,0.12)'; PG.rrect(bx - 6, bt, bw + 12, bb - bt + 8, 18); ctx.fill();
@@ -155,7 +156,7 @@
           const sleeping = s.t - s.sleepAt < 3;
           if (sleeping) { PG.drawSprite(ctx, 'img/treats/bed.webp', A.x + 58, A.y + 72, 52); PG.ava.draw(ctx, A.x + 58, A.y + 82, A.w * 0.14, { pose: 'sleep', t: s.t, shadow: false }); txt('z z z', A.x + 98, A.y + 30 - (s.t % 1) * 8, 14, '#7765EE', { font: FD }); }
           else PG.ava.draw(ctx, A.x + 52, A.y + A.h * 0.2, A.w * 0.15, { pose: s.t - s.cheerAt < 1 ? 'hop' : s.danger > 0 ? 'scared' : 'idle', t: s.t, shadow: false });
-          if (s.say && s.t - s.say.t < 0.9) { const a = 1 - (s.t - s.say.t) / 0.9; ctx.fillStyle = `rgba(255,255,255,${0.95 * a})`; PG.rrect(A.x + 70, A.y + A.h * 0.2 - 92, 64, 26, 13); ctx.fill(); txt(s.say.text, A.x + 102, A.y + A.h * 0.2 - 79, 13, rgba('#9A5A2E', a), { font: FB, weight: 900 }); }
+          if (s.say && s.t - s.say.t < 0.9) { const a = 1 - (s.t - s.say.t) / 0.9; ctx.fillStyle = `rgba(255,255,255,${0.95 * a})`; PG.rrect(A.x + 92, A.y + 74, 70, 26, 13); ctx.fill(); txt(s.say.text, A.x + 127, A.y + 87, 13, rgba('#9A5A2E', a), { font: FB, weight: 900 }); }
           // aim: the treat in hand and a guide line
           if (!inst.over) {
             const r = RAD[s.cur] * bw, px = bx + clamp(s.aim, RAD[s.cur], 1 - RAD[s.cur]) * bw, py = bt - r - 6;

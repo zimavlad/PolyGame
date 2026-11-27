@@ -327,7 +327,7 @@ $('updGo').addEventListener('click', () => {
   requestAnimationFrame(() => { const n = $('libNew'); if (n) n.scrollIntoView({ block: 'start' }); });
 });
 // short news after a smaller update: shown on the next NEWS_SHOWS launches, then never again
-const NEWS_KEY = 'walk-fix-1', NEWS_SHOWS = 3;
+const NEWS_KEY = 'walk-fix-2', NEWS_SHOWS = 3;
 function maybeShowNews(force) {
   const el = $('news'); if (!el) return false;
   const n = Number(store.get('polygame.news.' + NEWS_KEY, 0)) || 0;

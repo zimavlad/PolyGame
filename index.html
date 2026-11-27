@@ -115,7 +115,7 @@ button{font:inherit;color:inherit}
 .tile{border:0;background:var(--chip);border-radius:20px;padding:14px 12px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-width:0}
 .tile .ico{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:#FFFFFF;font-family:var(--font-display);font-weight:800;font-size:18px;background:var(--c,var(--violet))}
 .tile b{font-family:var(--font-display);font-weight:800;font-size:14px}
-.tile span{font-size:12px;font-weight:800;color:var(--ink-soft);line-height:1.3}
+.tile span{font-size:12px;font-weight:800;color:var(--ink-soft);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 @media (prefers-reduced-motion:reduce){.dots i,.node.current .disc{animation:none}}
 /* BIG UPDATE pop-up */
 .upd{background:rgba(39,30,70,.55);z-index:5;overflow:hidden;touch-action:none}
@@ -134,18 +134,26 @@ button{font:inherit;color:inherit}
 .upd-btn{margin:0 auto;max-width:260px;width:calc(100% - 64px);font-size:20px;padding:17px 24px;animation:updUp .5s 1s both,updBeat 1.6s 1.6s ease-in-out infinite}
 .upd-conf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .upd-conf i{position:absolute;top:-20px;width:9px;height:14px;border-radius:2px;background:var(--c);animation:updFall var(--t) var(--d) linear infinite;opacity:.9}
-.news{background:rgba(39,30,70,.45);z-index:5;overflow:hidden;touch-action:none;align-items:flex-end}
-.news-card{position:relative;background:var(--card);border-radius:28px;width:100%;max-width:400px;box-sizing:border-box;padding:18px 16px 18px;text-align:left;box-shadow:0 24px 70px rgba(30,20,60,.4);animation:newsIn .55s cubic-bezier(.2,1.3,.4,1) both;touch-action:none;margin-bottom:max(8px,env(safe-area-inset-bottom))}
-.news-head{display:flex;align-items:center;gap:12px;margin:0 4px 12px}
-.news-head img{width:64px;height:64px;object-fit:contain;flex:0 0 64px;animation:updFloat 3s ease-in-out infinite}
-.news-head h2{margin:0;font-family:var(--font-display);font-weight:800;font-size:26px;line-height:1.05;background:linear-gradient(90deg,var(--coral),var(--amber),var(--teal),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
-.news-head small{display:block;color:var(--ink-soft);font-weight:900;font-size:13px;margin-top:3px}
-.news-list{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:8px}
-.news-list li{display:flex;gap:10px;align-items:flex-start;background:var(--chip);border-radius:16px;padding:10px 12px;font-weight:800;font-size:14px;line-height:1.3;animation:updUp .45s calc(.25s + var(--i)*.1s) both}
-.news-list li b{font-family:var(--font-display);font-weight:800}
-.news-list .e{font-size:22px;line-height:1;flex:0 0 26px;text-align:center}
-.news .btn{display:block;margin:0 auto;width:100%;max-width:300px;font-size:18px;padding:15px 20px}
-@keyframes newsIn{from{transform:translateY(60px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+.news{background:rgba(39,30,70,.5);z-index:5;overflow:hidden;touch-action:none}
+.news-card{position:relative;background:var(--card);border-radius:30px;width:100%;max-width:400px;max-height:100%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;box-sizing:border-box;padding:0 0 18px;text-align:left;box-shadow:0 26px 70px rgba(30,20,60,.45);animation:newsIn .6s cubic-bezier(.2,1.35,.4,1) both}
+.news-card::before{content:"";position:absolute;inset:0;border-radius:30px;padding:3px;z-index:2;background:linear-gradient(120deg,var(--coral),var(--amber),var(--teal),var(--violet),var(--coral));background-size:300% 300%;animation:updShift 4s linear infinite;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.news-hero{position:relative;height:124px;border-radius:30px 30px 0 0;overflow:hidden;background:linear-gradient(135deg,#FFB86B 0%,#F47FB0 45%,#8E7BFF 100%)}
+.news-hero::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.45) 0 3px,transparent 4px),radial-gradient(circle at 70% 20%,rgba(255,255,255,.5) 0 2px,transparent 3px),radial-gradient(circle at 85% 70%,rgba(255,255,255,.45) 0 3px,transparent 4px),radial-gradient(circle at 35% 75%,rgba(255,255,255,.4) 0 2px,transparent 3px);animation:newsTw 2.4s ease-in-out infinite alternate}
+.news-hero img{position:absolute;right:4px;bottom:-6px;height:128px;animation:newsHop 1.6s ease-in-out infinite;filter:drop-shadow(0 8px 10px rgba(60,20,80,.3))}
+.news-hero .tag{position:absolute;left:18px;top:14px;background:rgba(255,255,255,.92);color:#C0407A;font-weight:900;font-size:12px;letter-spacing:.08em;padding:5px 10px;border-radius:999px}
+.news-hero h2{position:absolute;left:18px;bottom:16px;margin:0;font-family:var(--font-display);font-weight:800;font-size:clamp(22px,7vw,28px);line-height:1.05;color:#fff;text-shadow:0 3px 0 rgba(120,40,110,.35);max-width:56%}
+.news-sub{margin:12px 20px 8px;color:var(--ink-soft);font-weight:900;font-size:14px}
+.news-list{list-style:none;margin:0 14px 14px;padding:0;display:grid;gap:7px}
+.news-list li{display:flex;gap:12px;align-items:center;background:var(--chip);border-radius:18px;padding:9px 12px;animation:updUp .45s calc(.3s + var(--i)*.12s) both}
+.news-list .ic{flex:0 0 46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:26px;background:var(--c);overflow:hidden}
+.news-list .ic img{width:100%;height:100%;object-fit:cover}
+.news-list b{display:block;font-family:var(--font-display);font-weight:800;font-size:15px;line-height:1.2}
+.news-list span.t{display:block;font-weight:800;font-size:13px;color:var(--ink-soft);line-height:1.3;margin-top:2px}
+.news .btn{display:block;margin:0 auto;width:calc(100% - 64px);max-width:280px;font-size:20px;padding:15px 22px;animation:updUp .5s .8s both,updBeat 1.6s 1.4s ease-in-out infinite}
+@media (max-height:720px){.news-hero{height:92px}.news-hero img{height:100px}.news-hero .tag{display:none}.news-hero h2{bottom:12px;font-size:22px}.news-sub{display:none}.news-list{margin-top:10px;gap:6px}.news-list li{padding:7px 10px;gap:10px}.news-list .ic{flex-basis:36px;height:36px;font-size:20px;border-radius:11px}.news-list b{font-size:14px}.news-list span.t{font-size:12px}.news .btn{padding:13px 20px;font-size:18px}}
+@keyframes newsIn{from{transform:translateY(40px) scale(.92);opacity:0}to{transform:none;opacity:1}}
+@keyframes newsHop{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-12px) rotate(3deg)}}
+@keyframes newsTw{from{opacity:.4}to{opacity:1}}
 @keyframes updIn{0%{transform:scale(.6) translateY(40px);opacity:0}100%{transform:none;opacity:1}}
 @keyframes updShift{0%{background-position:0% 50%}100%{background-position:300% 50%}}
 @keyframes updFloat{0%,100%{transform:scale(1.04) translateY(0)}50%{transform:scale(1.07) translateY(-5px)}}
@@ -164,7 +172,7 @@ button{font:inherit;color:inherit}
 .menu-ava.hop{animation:avaHop .6s cubic-bezier(.2,1.5,.4,1)}
 @keyframes avaBob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-4px) rotate(1deg)}}
 @keyframes avaHop{0%{transform:none}40%{transform:translateY(-26px) rotate(-6deg) scale(1.05)}100%{transform:none}}
-@media (prefers-reduced-motion:reduce){.overlay .card,.overlay .panel,.upd-card,.upd-title,.upd-list li,.upd-btn,.upd-hero img,.upd-conf i,.menu-ava{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.overlay .card,.overlay .panel,.upd-card,.upd-title,.upd-list li,.upd-btn,.upd-hero img,.upd-conf i,.menu-ava,.news-card,.news-hero img,.news-list li,.news .btn{animation:none!important}}
 
 </style>
 </head>
@@ -209,13 +217,15 @@ button{font:inherit;color:inherit}
 
   <div id="news" class="overlay news" hidden>
     <div class="news-card" role="dialog" aria-labelledby="newsTitle">
-      <div class="news-head"><img src="img/ava/happy.webp" alt="" draggable="false"><div><h2 id="newsTitle">Що нового</h2><small>Ми полагодили те, що заважало, і додали веселого</small></div></div>
+      <div class="news-hero"><span class="tag">ОНОВЛЕННЯ</span><h2 id="newsTitle">Свіже оновлення!</h2><img src="img/ava/jump.webp" alt="" draggable="false"></div>
+      <p class="news-sub">Що змінилося з минулого разу</p>
       <ul class="news-list">
-        <li style="--i:0"><span class="e">🐕</span><span><b>Прогулянка з Авою.</b> Тепер там білка, яку треба наздогнати, м'ячик від Поліни, зумі й гілки, під якими Ава пригинається</span></li>
-        <li style="--i:1"><span class="e">🔩</span><span><b>Гайки.</b> «Назад» безкоштовний і без ліміту, а гра підкаже, коли далі вже не пройти</span></li>
-        <li style="--i:2"><span class="e">🍪</span><span><b>Ласощі для Ави.</b> Нічого більше не крутиться, є комбо й золоте печиво</span></li>
+        <li style="--i:0"><span class="ic" style="--c:#FFE3C2"><img src="img/ava/happy.webp" alt=""></span><div><b>Прогулянка з Авою</b><span class="t">Тепер справжня пригода: наздожени білку, впіймай м'ячик, вмикай зумі й пригинайся під гілками</span></div></li>
+        <li style="--i:1"><span class="ic" style="--c:#E6DCFF">🔩</span><div><b>Гайки</b><span class="t">Болти стоять як справжні, «назад» безкоштовний. Застрягла? Гра підкаже</span></div></li>
+        <li style="--i:2"><span class="ic" style="--c:#FFF1D6">🍪</span><div><b>Ласощі для Ави</b><span class="t">Смаколики більше не крутяться. Є комбо й золоте печиво, яке все покращує</span></div></li>
+        <li style="--i:3"><span class="ic" style="--c:#D9F5EE">🎹</span><div><b>Піаніно</b><span class="t">Нова іконка й 17 мелодій. Яку зіграєш першою?</span></div></li>
       </ul>
-      <button id="newsGo" class="btn" type="button">Зрозуміло, граю!</button>
+      <button id="newsGo" class="btn" type="button">Погнали!</button>
     </div>
   </div>
 
@@ -280,31 +290,31 @@ button{font:inherit;color:inherit}
   </div>
 </div>
 
-<script>const BUILD = '20261127192406';</script>
-<script src="js/core.js?v=20261127192406"></script>
-<script src="js/ava.js?v=20261127192406"></script>
-<script src="js/games/spike.js?v=20261127192406"></script>
-<script src="js/games/stack.js?v=20261127192406"></script>
-<script src="js/games/knife.js?v=20261127192406"></script>
-<script src="js/games/zigzag.js?v=20261127192406"></script>
-<script src="js/games/colorswitch.js?v=20261127192406"></script>
-<script src="js/games/flappy.js?v=20261127192406"></script>
-<script src="js/games/timber.js?v=20261127192406"></script>
-<script src="js/games/foodhunt.js?v=20261127192406"></script>
-<script src="js/games/avawalk.js?v=20261127192406"></script>
-<script src="js/games/avasniff.js?v=20261127192406"></script>
-<script src="js/games/avamerge.js?v=20261127192406"></script>
-<script src="js/games/bolts.js?v=20261127192406"></script>
-<script src="js/games/piano.js?v=20261127192406"></script>
-<script src="js/games/bakery.js?v=20261127192406"></script>
-<script src="js/games/paint.js?v=20261127192406"></script>
-<script src="js/minis/popit.js?v=20261127192406"></script>
-<script src="js/minis/pin.js?v=20261127192406"></script>
-<script src="js/minis/memory.js?v=20261127192406"></script>
-<script src="js/minis/mole.js?v=20261127192406"></script>
-<script src="js/minis/sudoku4.js?v=20261127192406"></script>
-<script src="js/minis/watersort.js?v=20261127192406"></script>
-<script src="js/minis/ppo.js?v=20261127192406"></script>
-<script src="js/levels.js?v=20261127192406"></script>
+<script>const BUILD = '20261127193817';</script>
+<script src="js/core.js?v=20261127193817"></script>
+<script src="js/ava.js?v=20261127193817"></script>
+<script src="js/games/spike.js?v=20261127193817"></script>
+<script src="js/games/stack.js?v=20261127193817"></script>
+<script src="js/games/knife.js?v=20261127193817"></script>
+<script src="js/games/zigzag.js?v=20261127193817"></script>
+<script src="js/games/colorswitch.js?v=20261127193817"></script>
+<script src="js/games/flappy.js?v=20261127193817"></script>
+<script src="js/games/timber.js?v=20261127193817"></script>
+<script src="js/games/foodhunt.js?v=20261127193817"></script>
+<script src="js/games/avawalk.js?v=20261127193817"></script>
+<script src="js/games/avasniff.js?v=20261127193817"></script>
+<script src="js/games/avamerge.js?v=20261127193817"></script>
+<script src="js/games/bolts.js?v=20261127193817"></script>
+<script src="js/games/piano.js?v=20261127193817"></script>
+<script src="js/games/bakery.js?v=20261127193817"></script>
+<script src="js/games/paint.js?v=20261127193817"></script>
+<script src="js/minis/popit.js?v=20261127193817"></script>
+<script src="js/minis/pin.js?v=20261127193817"></script>
+<script src="js/minis/memory.js?v=20261127193817"></script>
+<script src="js/minis/mole.js?v=20261127193817"></script>
+<script src="js/minis/sudoku4.js?v=20261127193817"></script>
+<script src="js/minis/watersort.js?v=20261127193817"></script>
+<script src="js/minis/ppo.js?v=20261127193817"></script>
+<script src="js/levels.js?v=20261127193817"></script>
 </body>
 </html>

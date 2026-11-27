@@ -69,6 +69,7 @@ const spec = lv => (lv >= 4 && lv % 3 === 1 ? { colors: 5, empty: 1 } : { colors
     ctx.drawImage(im, x - w * k / 2, y - h, w * k, h);
   }
   const nutStep = w => w * NUT_AR * SQUASH * STEP;
+  const ROD0 = 205; // where the thread starts in the bolt picture (above it: the head and the smooth shank)
   function icon(ctx, x, y, r) { nut(ctx, x, y + r * 0.85, r * 1.5, 0); nut(ctx, x, y + r * 0.85 - nutStep(r * 1.5), r * 1.5, 2); nut(ctx, x, y + r * 0.85 - nutStep(r * 1.5) * 2, r * 1.5, 3); }
 
   PG.arcade.register({
@@ -94,9 +95,9 @@ const spec = lv => (lv >= 4 && lv % 3 === 1 ? { colors: 5, empty: 1 } : { colors
       const lay = A => {
         const rows = n > 4 ? 2 : 1, perRow = Math.ceil(n / rows), slot = A.w / (perRow + 0.2);
         const rowH = (A.h - 70) / rows;
-        const nw = Math.min(slot * 0.88, 96, rowH / (rows === 1 ? 3.6 : 2.9)), st = nutStep(nw), rodH = nw * 2.55;
+        const nw = Math.min(slot * 0.88, 96, rowH / 3.6), st = nutStep(nw), rodH = nw * 2.55;
         const pos = []; for (let i = 0; i < n; i++) { const r = Math.floor(i / perRow), c = i % perRow, cnt = r === rows - 1 ? n - perRow * (rows - 1) : perRow;
-          pos.push({ x: A.x + A.w / 2 + (c - (cnt - 1) / 2) * slot, base: rows === 1 ? A.y + 60 + rowH * 0.74 : A.y + 60 + rowH * (r + 1) - rowH * 0.14, row: r, cnt }); }
+          pos.push({ x: A.x + A.w / 2 + (c - (cnt - 1) / 2) * slot, base: rows === 1 ? A.y + 60 + rowH * 0.74 : A.y + 60 + rowH * (r + 1) - rowH * 0.14 - (r === 0 ? 12 : 0), row: r, cnt }); }
         return { pos, nw, st, rodH, slot, rows, perRow };
       };
       inst._lay = lay; // for automated checks
@@ -161,7 +162,7 @@ const spec = lv => (lv >= 4 && lv % 3 === 1 ? { colors: 5, empty: 1 } : { colors
           if (!canMove(s.st[s.sel], s.st[hit])) { s.shakeB = hit; s.shakeT = s.t; PG.sfx.bad(); PG.buzz(PG.HAP.double); s.sel = -1; return; }
           const k = Math.min(topRun(s.st[s.sel]), CAP - s.st[hit].length), col = s.st[s.sel][s.st[s.sel].length - 1];
           const from = s.sel, fromH = s.st[from].length, toH = s.st[hit].length;
-          { s.hist.push({ st: s.st.map(b => b.slice()), seen: s.seen.map(b => b.slice()), done: [...s.done], progress: inst.progress }); if (s.hist.length > 20) s.hist.shift(); }
+          { s.hist.push({ st: s.st.map(b => b.slice()), seen: s.seen.map(b => b.slice()), done: [...s.done], progress: inst.progress }); if (s.hist.length > 400) s.hist.shift(); }
           for (let m = 0; m < k; m++) { s.st[hit].push(s.st[from].pop()); s.seen[hit].push(true); s.seen[from].pop(); }
           // whatever is now on top of the source is revealed
           if (hidden) { const b = s.st[from], run = topRun(b); for (let m = b.length - run; m < b.length; m++) if (!s.seen[from][m]) { s.seen[from][m] = true; s.revealAt = s.t; s.revealB = from; } }
@@ -223,13 +224,16 @@ const spec = lv => (lv >= 4 && lv % 3 === 1 ? { colors: 5, empty: 1 } : { colors
           else { ctx.fillStyle = '#DCE6F7'; ctx.fillRect(A.x, A.y, A.w, A.h); }
           txt(String(inst.progress), A.x + A.w / 2, A.y + 34, 40, 'rgba(60,80,140,0.35)', { font: FD });
           txt(`ходів ${s.moves} · ★★★ до ${par}`, A.x + A.w / 2, A.y + 62, 12, s.moves <= par ? 'rgba(60,80,140,0.7)' : 'rgba(229,72,77,0.8)', { font: FB, weight: 900 });
-          const boltW = boltIm ? g.nw * 0.3 / 78 * boltIm.naturalWidth : g.nw * 0.3, boltH = boltIm ? boltW * boltIm.naturalHeight / boltIm.naturalWidth : g.rodH;
-          const boltTop = base => base - boltH - g.st * 0.3;
+          // a threaded stud screwed into the shelf, tip up: only the thread of the bolt picture (no head), turned over.
+          // Its length follows the stack: four nuts, the lifted run above them, and a bit of thread over the top.
+          const boltW = boltIm ? g.nw * 0.3 / 78 * boltIm.naturalWidth : g.nw * 0.3;
+          const boltTop = base => base - g.st * 7.1;
           const drawBolt = (x, base, clipY) => {
+            const bot = base + g.st * 0.08, len = bot - boltTop(base);
             ctx.save();
             if (clipY != null) { ctx.beginPath(); ctx.rect(x - boltW, boltTop(base) - 10, boltW * 2, clipY - boltTop(base) + 10); ctx.clip(); }
-            if (boltIm) ctx.drawImage(boltIm, x - boltW / 2, boltTop(base), boltW, boltH);
-            else { ctx.fillStyle = '#A9B3C4'; ctx.fillRect(x - boltW / 2, boltTop(base), boltW, boltH); }
+            if (boltIm) { ctx.translate(x, bot); ctx.scale(1, -1); ctx.drawImage(boltIm, 0, ROD0, boltIm.naturalWidth, boltIm.naturalHeight - ROD0, -boltW / 2, 0, boltW, len); }
+            else { ctx.fillStyle = '#A9B3C4'; ctx.fillRect(x - boltW / 2, boltTop(base), boltW, len); }
             ctx.restore();
           };
           // where a nut sits on bolt i at stack slot m (its bottom edge), with landing squash and the finished-bolt hop
