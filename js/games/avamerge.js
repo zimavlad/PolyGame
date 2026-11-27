@@ -3,7 +3,7 @@
 // big bone → teddy → her bed. Two beds make Ava curl up and sleep (a big bonus). Don't let the basket overflow.
 (function () {
   const PG = window.PG;
-  const { FD, FB, clamp, rand, randi, txt, rgba } = PG;
+  const { FD, FB, clamp, rand, randi, pick, txt, rgba } = PG;
   const ACCENT = '#E8743B';
   const ITEMS = ['biscuit', 'cookie', 'sausage', 'ball', 'chicken', 'frisbee', 'bone', 'bear', 'bed'];
   const NAMES = ['печиво-кісточка', 'печиво', 'сосиска', "м'ячик", 'курочка-пищалка', 'фризбі', 'велика кістка', 'ведмедик', 'лежанка'];
@@ -18,7 +18,7 @@
     family: 'Ава',
     accent: ACCENT,
     thumb: 'img/treats/chicken.webp',
-    howto: ['Веди пальцем і відпусти — смаколик падає', 'Два однакові злипаються. Збери ціль угорі'],
+    howto: ['Веди пальцем і відпусти: смаколик упаде', 'Два однакові злипаються в більший. Збери те, що вгорі'],
     boosts: [{ id: 'wide', icon: '↔️', name: 'Ширший кошик', price: 3 }],
     goal: lv => ({ count: 1, unit: GOALN[targetOf(lv)] }),
     twist: lv => `Зроби: ${GOALN[targetOf(lv)]}` + (lv >= 2 ? ' · кошик вужчий' : ''),
@@ -42,8 +42,10 @@
       function drop() {
         if (s.cool > 0 || inst.over) return;
         const r = RAD[s.cur];
-        s.items.push({ id: ++s.idc, k: s.cur, x: clamp(s.aim, r, 1 - r), y: -r - 0.02, vx: 0, vy: 0.3, rot: rand(-0.3, 0.3), vr: 0, born: s.t });
-        s.cur = s.next; s.next = randi(maxSpawn + 1); s.cool = 0.45; inst.stats.drops++;
+        s.items.push({ id: ++s.idc, k: s.cur, x: clamp(s.aim, r, 1 - r), y: -r - 0.02, vx: 0, vy: 0.3, rot: rand(-0.15, 0.15), vr: 0, born: s.t, gold: s.curGold });
+        s.cur = s.next; s.curGold = s.nextGold; s.nextGold = false; s.next = randi(maxSpawn + 1);
+        // now and then a golden biscuit: whatever it touches goes one step up the ladder
+        if (inst.stats.drops % 11 === 9) { s.nextGold = true; s.next = 0; } s.cool = 0.45; inst.stats.drops++;
         PG.sfx.whoosh(); PG.buzz(PG.HAP.tick);
       }
       function merge(a, b, A) {
@@ -55,7 +57,11 @@
           s.sleepAt = s.t; PG.reward({ score: 500, energy: 3, x: px, y: py }); PG.floatText(px, py - 40, 'Ава спить!', ACCENT, 24);
           PG.sfx.win(); PG.buzz(PG.HAP.success); PG.confetti && PG.confetti(40); return;
         }
-        s.items.push({ id: ++s.idc, k, x, y, vx: 0, vy: -0.4, rot: 0, vr: rand(-2, 2), born: s.t, pop: s.t });
+        s.items.push({ id: ++s.idc, k, x, y, vx: 0, vy: -0.4, rot: 0, vr: rand(-1, 1), born: s.t, pop: s.t });
+        // merges in quick succession make a combo: more points, a higher note, Ava cheers
+        s.combo = s.t - (s.lastMerge || -9) < 1.3 ? (s.combo || 1) + 1 : 1; s.lastMerge = s.t;
+        if (s.combo >= 2) { PG.floatText(px, py - 46, `Комбо ×${s.combo}!`, '#7765EE', 16 + Math.min(s.combo, 5) * 2); PG.reward({ score: 15 * s.combo }); s.cheerAt = s.t; }
+        s.say = { text: pick(['Ням!', 'Смачно!', 'Ще!', 'Гав!']), t: s.t };
         s.best = Math.max(s.best, k); inst.stats.top = s.best;
         if (k >= target && !inst.progress) { // the goal treat: Ava jumps for joy
           inst.progress = 1; s.cheerAt = s.t;
@@ -70,23 +76,26 @@
       function physics(dt, A) {
         const g = 2.6, H = box.h;
         for (const it of s.items) {
-          it.vy += g * dt; it.x += it.vx * dt; it.y += it.vy * dt; it.rot += it.vr * dt;
-          it.vx *= Math.pow(0.6, dt); it.vr *= Math.pow(0.4, dt);
+          it.vy += g * dt; it.x += it.vx * dt; it.y += it.vy * dt;
+          it.vx *= Math.pow(0.6, dt);
+          // treats lean a little when nudged and settle back upright, they never spin
+          it.vr += (-it.rot * 18 - it.vr * 6) * dt; it.rot = clamp(it.rot + it.vr * dt, -0.35, 0.35);
           const r = RAD[it.k];
           if (it.x < r) { it.x = r; it.vx = Math.abs(it.vx) * 0.2; }
           if (it.x > 1 - r) { it.x = 1 - r; it.vx = -Math.abs(it.vx) * 0.2; }
-          if (it.y > H - r) { it.y = H - r; if (it.vy > 0.6) PG.buzz(PG.HAP.tick); it.vy = -Math.abs(it.vy) * 0.15; it.vr += it.vx * 4; }
+          if (it.y > H - r) { it.y = H - r; if (it.vy > 0.6) PG.buzz(PG.HAP.tick); it.vy = -Math.abs(it.vy) * 0.15; it.vr += it.vx * 0.8; }
         }
         for (let iter = 0; iter < 4; iter++) {
           for (let i = 0; i < s.items.length; i++) for (let j = i + 1; j < s.items.length; j++) {
             const a = s.items[i], b = s.items[j]; if (a.dead || b.dead) continue;
             const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1e-6, ra = RAD[a.k], rb = RAD[b.k], ov = ra + rb - d;
             if (ov > 0) {
+              if (iter === 0 && (a.gold || b.gold) && !(a.gold && b.gold)) { const gld = a.gold ? a : b, other = a.gold ? b : a; gld.k = other.k; gld.gold = false; merge(gld, other, A); continue; }
               if (a.k === b.k && iter === 0) { merge(a, b, A); continue; }
               const nx = dx / d, ny = dy / d, ma = ra * ra, mb = rb * rb, sum = ma + mb;
               a.x -= nx * ov * (mb / sum); a.y -= ny * ov * (mb / sum); b.x += nx * ov * (ma / sum); b.y += ny * ov * (ma / sum);
               const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-              if (rv < 0) { const imp = -1.15 * rv / (1 / ma + 1 / mb); a.vx -= imp / ma * nx; a.vy -= imp / ma * ny; b.vx += imp / mb * nx; b.vy += imp / mb * ny; a.vr -= rv * nx * 2; b.vr += rv * nx * 2; }
+              if (rv < 0) { const imp = -1.15 * rv / (1 / ma + 1 / mb); a.vx -= imp / ma * nx; a.vy -= imp / ma * ny; b.vx += imp / mb * nx; b.vy += imp / mb * ny; a.vr -= rv * nx * 0.4; b.vr += rv * nx * 0.4; }
             }
           }
           s.items = s.items.filter(it => !it.dead);
@@ -134,15 +143,19 @@
           for (const it of s.items) {
             const r = RAD[it.k] * bw, px = bx + it.x * bw, py = bt + it.y * bw;
             const pop = it.pop != null ? Math.min(1, (s.t - it.pop) / 0.25) : 1, sc = 0.6 + 0.4 * PG.easeOutBack(pop);
+            if (it.gold) { ctx.fillStyle = rgba('#F5B12E', 0.35 + 0.2 * Math.sin(s.t * 8)); ctx.beginPath(); ctx.arc(px, py, r * 1.5, 0, Math.PI * 2); ctx.fill(); }
             PG.drawSprite(ctx, 'img/treats/' + ITEMS[it.k] + '.webp', px, py, r * 2.25 * sc, { rot: it.rot });
+            if (it.gold) txt('✨', px + r * 0.8, py - r * 0.8, 14, '#000', {});
           }
           // next treat and Ava watching
           ctx.fillStyle = 'rgba(255,255,255,0.75)'; PG.rrect(A.x + A.w - 66, A.y + 12, 54, 54, 16); ctx.fill();
           txt('далі', A.x + A.w - 39, A.y + 22, 10, '#9A6A44', { font: FB, weight: 900 });
+          if (s.nextGold) { ctx.fillStyle = rgba('#F5B12E', 0.4); ctx.beginPath(); ctx.arc(A.x + A.w - 39, A.y + 44, 18, 0, Math.PI * 2); ctx.fill(); }
           PG.drawSprite(ctx, 'img/treats/' + ITEMS[s.next] + '.webp', A.x + A.w - 39, A.y + 44, 30);
           const sleeping = s.t - s.sleepAt < 3;
           if (sleeping) { PG.drawSprite(ctx, 'img/treats/bed.webp', A.x + 58, A.y + 72, 52); PG.ava.draw(ctx, A.x + 58, A.y + 82, A.w * 0.14, { pose: 'sleep', t: s.t, shadow: false }); txt('z z z', A.x + 98, A.y + 30 - (s.t % 1) * 8, 14, '#7765EE', { font: FD }); }
           else PG.ava.draw(ctx, A.x + 52, A.y + A.h * 0.2, A.w * 0.15, { pose: s.t - s.cheerAt < 1 ? 'hop' : s.danger > 0 ? 'scared' : 'idle', t: s.t, shadow: false });
+          if (s.say && s.t - s.say.t < 0.9) { const a = 1 - (s.t - s.say.t) / 0.9; ctx.fillStyle = `rgba(255,255,255,${0.95 * a})`; PG.rrect(A.x + 70, A.y + A.h * 0.2 - 92, 64, 26, 13); ctx.fill(); txt(s.say.text, A.x + 102, A.y + A.h * 0.2 - 79, 13, rgba('#9A5A2E', a), { font: FB, weight: 900 }); }
           // aim: the treat in hand and a guide line
           if (!inst.over) {
             const r = RAD[s.cur] * bw, px = bx + clamp(s.aim, RAD[s.cur], 1 - RAD[s.cur]) * bw, py = bt - r - 6;

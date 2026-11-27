@@ -9,7 +9,8 @@
   const COLS = ['#F2615E', '#F5B12E', '#22B59B', '#7765EE', '#3E9BF0', '#F47FB0', '#8BC34A', '#FF8A3D', '#9AA3B5']; // the last one is a hidden nut
   const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); const f = v => Math.round(clamp(v * k, 0, 255)); return `rgb(${f(n >> 16 & 255)},${f(n >> 8 & 255)},${f(n & 255)})`; };
   // level 1 already has four colours; every third level from 4 leaves only one empty bolt
-const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0), 8), empty: lv >= 4 && lv % 3 === 1 ? 1 : 2 });
+// a single empty bolt only with up to five colours: with eight it turned into dead ends after a few natural moves
+const spec = lv => (lv >= 4 && lv % 3 === 1 ? { colors: 5, empty: 1 } : { colors: Math.min(3 + lv, 8), empty: 2 });
 
   // ---- puzzle logic ----
   const topRun = b => { if (!b.length) return 0; const c = b[b.length - 1]; let n = 0; for (let i = b.length - 1; i >= 0 && b[i] === c; i--) n++; return n; };
@@ -76,8 +77,8 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
     family: 'Головоломка',
     accent: ACCENT,
     rush: false,
-    howto: ['Тапни болт — гайки підкрутяться вгору', 'Тапни інший — перекрутяться туди, якщо колір той самий'],
-    boosts: [{ id: 'bolt', icon: '🔩', name: '+1 порожній болт', price: 4 }, { id: 'undo', icon: '↩️', name: '3 скасування', price: 2 }],
+    howto: ['Тапни болт — гайки підкрутяться вгору', 'Потім тапни інший: гайки перейдуть, якщо зверху той самий колір'],
+    boosts: [{ id: 'bolt', icon: '🔩', name: '+1 порожній болт', price: 4 }, { id: 'hint', icon: '💡', name: 'Підказки', price: 2 }],
     goal: lv => ({ count: spec(lv).colors, unit: 'болтів' }),
     twist: lv => (lv === 1 ? 'Розминка: 4 кольори' : spec(lv).empty === 1 ? `Лише один порожній болт · ${spec(lv).colors} кольори` : `${spec(lv).colors} кольорів`) + (lv === 5 ? ' · нове: сховані гайки' : ''),
     icon,
@@ -85,8 +86,8 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
       const st = deal(level); let n = st.length;
       const s = { t: 0, st, sel: -1, selAt: 0, flights: [], land: [], done: new Set(), doneAt: {}, moves: 0, shakeB: -1, shakeT: -9 };
       // from level 5 the nuts under the top run are hidden ('?') until they come to the top: you plan with half the picture
-      const hidden = level >= 5;
-      s.seen = st.map(b => b.map((c, m) => !hidden || m >= b.length - topRun(b)));
+      const hidden = level >= 8; // the top two nuts of every bolt are always visible
+      s.seen = st.map(b => b.map((c, m) => !hidden || m >= b.length - Math.max(2, topRun(b))));
       const par = Math.round(spec(level).colors * 3.2 + 2); // moves for three stars
       const inst = { progress: 0, over: null, stats: { level, moves: 0 } };
       inst._s = s;
@@ -101,23 +102,49 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
       inst._lay = lay; // for automated checks
       const busy = () => s.flights.length > 0;
       function complete(i) { const b = s.st[i]; return b.length === CAP && b.every(c => c === b[0]); }
+      // after every move: can this still be won? if not, say so at once and point at «назад»; with hints, find the next move
+      function firstMove(st0, cap) {
+        const seen = new Set(); let nodes = 0, first = null;
+        const key = st => st.map(b => b.join(',')).sort().join('|');
+        const go = (st, path) => {
+          if (solved(st)) { first = path[0] || null; return true; }
+          if (++nodes > cap) return false;
+          const k = key(st); if (seen.has(k)) return false; seen.add(k);
+          for (let i = 0; i < st.length; i++) for (let j = 0; j < st.length; j++) {
+            if (i === j || !canMove(st[i], st[j])) continue;
+            if (!st[j].length && topRun(st[i]) === st[i].length) continue;
+            const m = Math.min(topRun(st[i]), CAP - st[j].length), nx = st.map(b => b.slice());
+            for (let q = 0; q < m; q++) nx[j].push(nx[i].pop());
+            if (go(nx, path.length ? path : [[i, j]])) return true;
+          }
+          return false;
+        };
+        const ok = go(st0.map(b => b.slice()), []);
+        return { ok, first, sure: nodes <= cap };
+      }
+      function checkState() {
+        if (inst.progress >= spec(level).colors) return;
+        const r = firstMove(s.st, 30000);
+        s.dead = !r.ok && r.sure; if (s.dead) { s.deadAt = s.t; PG.sfx.bad(); }
+        s.hintMove = s.hints && r.ok ? r.first : null;
+      }
       function stuck() {
         for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (canMove(s.st[i], s.st[j]) && !(s.st[j].length === 0 && topRun(s.st[i]) === s.st[i].length)) return false;
         return !solved(s.st);
       }
       // a ratchet of quick clicks, played as sound right away (sound is fine outside a touch, haptics on iOS are not)
       const ratchet = (n0, gap, f) => { for (let i = 0; i < n0; i++) PG.tone && PG.tone(f + (i % 2) * 140, 0.025, 'square', 0.03, i * gap); };
-      s.undos = 0; s.hist = [];
+      s.undos = Infinity; s.hist = []; s.dead = false; s.hintMove = null;
       const undoRect = A => ({ x: A.x + A.w - 112, y: A.y + 10, w: 100, h: 34 });
       function undo() {
         const h = s.hist.pop(); if (!h) return;
-        s.st = h.st; s.seen = h.seen; s.done = new Set(h.done); inst.progress = h.progress; s.undos--; s.sel = -1; s.moves++;
+        s.st = h.st; s.seen = h.seen; s.done = new Set(h.done); inst.progress = h.progress; s.sel = -1; s.moves++; s.dead = false; s.hintMove = null; checkState();
         PG.sfx.back(); PG.buzz(PG.HAP.light);
       }
       Object.assign(inst, {
         boost(id) {
           if (id === 'bolt') { s.st.push([]); s.seen.push([]); n = s.st.length; s.cache = null; }
-          if (id === 'undo') s.undos = 3;
+          if (id === 'hint') { s.hints = true; checkState(); }
         },
         tap(x, y) {
           if (busy()) return;
@@ -134,7 +161,7 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
           if (!canMove(s.st[s.sel], s.st[hit])) { s.shakeB = hit; s.shakeT = s.t; PG.sfx.bad(); PG.buzz(PG.HAP.double); s.sel = -1; return; }
           const k = Math.min(topRun(s.st[s.sel]), CAP - s.st[hit].length), col = s.st[s.sel][s.st[s.sel].length - 1];
           const from = s.sel, fromH = s.st[from].length, toH = s.st[hit].length;
-          if (s.undos > 0) { s.hist.push({ st: s.st.map(b => b.slice()), seen: s.seen.map(b => b.slice()), done: [...s.done], progress: inst.progress }); if (s.hist.length > 20) s.hist.shift(); }
+          { s.hist.push({ st: s.st.map(b => b.slice()), seen: s.seen.map(b => b.slice()), done: [...s.done], progress: inst.progress }); if (s.hist.length > 20) s.hist.shift(); }
           for (let m = 0; m < k; m++) { s.st[hit].push(s.st[from].pop()); s.seen[hit].push(true); s.seen[from].pop(); }
           // whatever is now on top of the source is revealed
           if (hidden) { const b = s.st[from], run = topRun(b); for (let m = b.length - run; m < b.length; m++) if (!s.seen[from][m]) { s.seen[from][m] = true; s.revealAt = s.t; s.revealB = from; } }
@@ -168,8 +195,7 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
               PG.burst(p.x, p.base - g.st * 2, COLS[s.st[to][0]], 22, 240); PG.burst(p.x, p.base - g.rodH, '#F5B12E', 12, 160);
               PG.sfx.loop();
             }
-            if (inst.progress < spec(level).colors && stuck() && !(s.undos > 0 && s.hist.length)) inst.over = { won: false, cause: 'stuck' };
-            if (inst.progress < spec(level).colors && stuck() && s.undos > 0 && s.hist.length) s.stuckHint = s.t;
+            checkState();
             if (inst.progress >= spec(level).colors) { inst.stars = s.moves <= par ? 3 : s.moves <= par * 1.35 ? 2 : 1; inst.stats.stars = inst.stars; }
           }
           s.land = s.land.filter(l => s.t - l.t < 0.4);
@@ -239,12 +265,17 @@ const spec = lv => ({ colors: Math.min(3 + lv - (lv >= 4 && lv % 3 === 1 ? 2 : 0
               ctx.closePath(); ctx.fill(); ctx.restore();
             }
           });
-          if (s.undos > 0) {
-            const r = undoRect(A), on = s.hist.length > 0, pulse = s.stuckHint && s.t - s.stuckHint < 3 ? 0.5 + 0.5 * Math.sin(s.t * 10) : 0;
+          {
+            const r = undoRect(A), on = s.hist.length > 0, pulse = s.dead ? 0.5 + 0.5 * Math.sin(s.t * 10) : 0;
             ctx.fillStyle = on ? `rgba(255,255,255,${0.92})` : 'rgba(255,255,255,0.5)'; PG.rrect(r.x, r.y, r.w, r.h, 17); ctx.fill();
             ctx.strokeStyle = rgba(ACCENT, on ? 0.6 + pulse * 0.4 : 0.2); ctx.lineWidth = 2 + pulse * 2; ctx.stroke();
-            txt(`↩️ назад ×${s.undos}`, r.x + r.w / 2, r.y + r.h / 2 + 1, 13, on ? '#2B3A6B' : 'rgba(43,58,107,0.4)', { font: FB, weight: 900 });
-            if (pulse) txt('Застрягла? Тисни «назад»', A.x + A.w / 2, A.y + 86, 13, '#E5484D', { font: FB, weight: 900 });
+            txt('↩️ назад', r.x + r.w / 2, r.y + r.h / 2 + 1, 13, on ? '#2B3A6B' : 'rgba(43,58,107,0.4)', { font: FB, weight: 900 });
+            if (s.dead) { ctx.fillStyle = 'rgba(229,72,77,0.92)'; PG.rrect(A.x + A.w / 2 - 140, A.y + 76, 280, 30, 15); ctx.fill(); txt('Звідси вже не пройти. Тисни «назад»', A.x + A.w / 2, A.y + 91, 13, '#FFFFFF', { font: FB, weight: 900 }); }
+          }
+          // the paid hint: a glow under the bolt to take from, then under the one to put on
+          if (s.hintMove && !s.dead && !busy()) {
+            const [hf, ht] = s.hintMove, idx = s.sel < 0 ? hf : s.sel === hf ? ht : -1;
+            if (idx >= 0) { const p = g.pos[idx]; ctx.fillStyle = rgba('#F5B12E', 0.35 + 0.25 * Math.sin(s.t * 8)); ctx.beginPath(); ctx.ellipse(p.x, p.base + 2, g.nw * 0.7, g.st * 0.6, 0, 0, Math.PI * 2); ctx.fill(); txt('💡', p.x, p.base + g.st * 1.4, 16, '#000', {}); }
           }
           // nuts in flight: spin up the thread, fly over in an arc with a tilt, screw down with a spin
           for (const f of s.flights) {

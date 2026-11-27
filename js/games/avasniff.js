@@ -24,7 +24,7 @@
     family: 'Ава',
     accent: ACCENT,
     thumb: 'img/ava/sniff.webp',
-    howto: ['Тапни клітинку: Ава понюхає й покаже, скільки кроків до кісточки', 'Знайди за кілька нюхів — і вона викопає'],
+    howto: ['Тапни клітинку: Ава понюхає й покаже, скільки кроків до кісточки', 'Вгадай місце, і Ава викопає кісточку'],
     boosts: [{ id: 'nose', icon: '👃', name: '+2 нюхи щоразу', price: 3 }],
     goal: lv => ({ count: spec(lv).bones, unit: 'кісточок' }),
     twist: lv => ({ 1: 'Розминка: 7 нюхів на кісточку', 2: 'Нове: кущі закривають клітинки', 3: 'Нове: смердюча шкарпетка-обманка', 4: 'Нове: сусідський кіт', 5: 'Менше нюхів', 6: 'Нове: дві кісточки одночасно' }[lv] || 'Менше нюхів, більше кущів'),
@@ -68,7 +68,7 @@
           if (s.skip) { s.skip = false; return; }
           if (s.phase !== 'idle' || inst.over) return;
           const i = tileAt(x, y); if (i < 0) return;
-          if (s.blocked.has(i)) { say('Там кущ — не пролізти', '#4C7A3A'); PG.sfx.bad(); PG.buzz(PG.HAP.double); return; }
+          if (s.blocked.has(i)) { say('Там кущ, не пролізти', '#4C7A3A'); PG.sfx.bad(); PG.buzz(PG.HAP.double); return; }
           if (i === s.cat) { // she is shy: running at the cat costs a sniff
             s.sniffs--; inst.stats.cats++; s.scaredUntil = s.t + 1.2; say('Шшш! Кіт! −1 нюх', '#27303F'); PG.sfx.hit(); PG.buzz(PG.HAP.thud); moveCat();
             if (s.sniffs <= 0) lose(); return;

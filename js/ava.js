@@ -94,13 +94,22 @@ function drawSprite(ctx, path, x, y, h, o = {}) {
   ctx.drawImage(im, -w / 2, -h * (o.ay != null ? o.ay : 0.5), w, h); ctx.restore();
   return true;
 }
+// a frame of a horizontal strip of n equal frames, its feet (bottom) on (x, y), h = frame height in px
+function drawStrip(ctx, path, n, frame, x, y, h, o = {}) {
+  const im = sprite(path); if (!im) return false;
+  const fw = im.naturalWidth / n, fh = im.naturalHeight, w = fw * h / fh, f = ((frame % n) + n) % n;
+  ctx.save(); ctx.translate(x, y); if (o.rot) ctx.rotate(o.rot); ctx.scale(o.flip ? -1 : 1, 1);
+  if (o.alpha != null) ctx.globalAlpha *= o.alpha;
+  ctx.drawImage(im, f * fw, 0, fw, fh, -w / 2, -h * (o.ay != null ? o.ay : 1), w, h); ctx.restore();
+  return true;
+}
 // all game art, fetched a little after start-up so the menu appears first
 const ART = ['img/walk/bg_park.webp', 'img/walk/bg_beach.webp', 'img/walk/bg_yard.webp', 'img/walk/dog_big.webp', 'img/walk/dog_pug.webp',
-  'img/walk/dog_dach.webp', 'img/walk/cat.webp', 'img/walk/bush.webp', 'img/walk/stone.webp', 'img/walk/puddle.webp',
+  'img/walk/dog_dach.webp', 'img/walk/cat.webp', 'img/walk/bush.webp', 'img/walk/stone.webp', 'img/walk/puddle.webp', 'img/walk/tree.webp', 'img/walk/pigeon.webp', 'img/walk/squirrel.webp', 'img/walk/gull.webp',
   'img/bolts/nut.webp', 'img/bolts/bolt.webp', 'img/bolts/board.webp', 'img/bolts/bg.webp']
   .concat(['biscuit', 'cookie', 'sausage', 'ball', 'chicken', 'frisbee', 'bone', 'bear', 'bed'].map(n => `img/treats/${n}.webp`));
 preload();
 setTimeout(() => ART.forEach(sprite), 1200);
 PG.ava = { draw, bone, preload, poses: Object.keys(META).concat(Object.keys(ANIM)) };
-PG.sprite = sprite; PG.drawSprite = drawSprite;
+PG.sprite = sprite; PG.drawSprite = drawSprite; PG.drawStrip = drawStrip;
 })();

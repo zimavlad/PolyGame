@@ -9,7 +9,7 @@ const { G, store, $, showOverlay } = PG;
 // Arcade nodes rotate through the games in this order (missing modules are skipped).
 const ARC_ORDER = ['spike', 'stack', 'knife', 'zigzag', 'colorswitch', 'flappy', 'timber', 'foodhunt'];
 const HAND = [
-  { title: 'Перші лінії', moves: 10, goals: [{ t: 'lines', n: 2 }], seed: 'rows', tray: [['XXX'], ['XXX'], ['XX', 'XX']], tip: 'Перетягуй фігури на поле. Заповни 2 рядки або стовпці — вони зникнуть.' },
+  { title: 'Перші лінії', moves: 10, goals: [{ t: 'lines', n: 2 }], seed: 'rows', tray: [['XXX'], ['XXX'], ['XX', 'XX']], tip: 'Перетягуй фігури на поле. Заповни 2 рядки або стовпці, і вони зникнуть.' },
   { title: 'Квадрати 3×3', moves: 12, goals: [{ t: 'boxes', n: 2 }], seed: 'boxes', tray: [['X', 'X', 'X'], ['X', 'X', 'X'], ['X']], tip: 'Заповнений квадрат 3×3 теж зникає.' },
   { title: 'Червоні точки', moves: 12, energy: 4, goals: [{ t: 'color', c: 0, n: 10 }], seed: 'pairs', tip: 'Веди пальцем по сусідніх точках одного кольору: вони лопаються за 1 ⚡.' },
   { kind: 'arcade', game: 'spike' },
@@ -326,6 +326,17 @@ $('updGo').addEventListener('click', () => {
   openLibrary();
   requestAnimationFrame(() => { const n = $('libNew'); if (n) n.scrollIntoView({ block: 'start' }); });
 });
+// short news after a smaller update: shown on the next NEWS_SHOWS launches, then never again
+const NEWS_KEY = 'walk-fix-1', NEWS_SHOWS = 3;
+function maybeShowNews(force) {
+  const el = $('news'); if (!el) return false;
+  const n = Number(store.get('polygame.news.' + NEWS_KEY, 0)) || 0;
+  if (!force && n >= NEWS_SHOWS) return false;
+  store.set('polygame.news.' + NEWS_KEY, n + 1);
+  el.hidden = false; PG.sfx.pop(); PG.log('news_show', { key: NEWS_KEY, n: n + 1 });
+  return true;
+}
+$('newsGo').addEventListener('click', () => { $('news').hidden = true; PG.sfx.pick(); PG.buzz(PG.HAP.light); });
 // Ava in the menu: sits and wags (her idle cycle); a tap makes her hop with joy and bark
 let menuHopAt = -9;
 (function menuAva() {
@@ -365,6 +376,7 @@ PG.hooks.boot = () => {
   if (q.has('endless')) { startEndless(); return; }
   showOverlay('menu');
   if (store.get('polygame.update', '') !== UPDATE_KEY || q.has('update')) setTimeout(showUpdate, 350);
+  else setTimeout(() => maybeShowNews(q.has('news')), 350);
 };
 PG.hooks.goalText = g => goalText(g);
 PG.levels = { levelDef, startLevel, openMap, openLibrary, goMenu };

@@ -729,7 +729,7 @@ function checkStuck() {
   if (ps.some(anyFit)) { if (G.toast && G.toast.stuck) G.toast = null; return; }
   if (G.energy > 0 && hasPair()) {
     if (!(G.toast && G.toast.stuck && now < G.toast.until)) LOG.ev('stuck', { g: G.gameNo, en: G.energy, fill: Math.round(boardFill() * 100) / 100 });
-    toast(G.sudoku ? 'Фігури не влазять за правилом судоку — лопни точки за ⚡' : 'Фігури не влазять — лопни точки за ⚡', 5); G.toast.stuck = true; return;
+    toast(G.sudoku ? 'За правилом судоку фігури не влазять. Лопни точки за ⚡' : 'Фігури не влазять. Лопни точки за ⚡', 5); G.toast.stuck = true; return;
   }
   G.busyUntil = now + 99;
   toast('Ходів більше немає', 3);
@@ -836,7 +836,7 @@ function endChain() {
   const seen = new Set(), uniq = [];
   for (const [r, c] of ch.cells) { const k = r * 9 + c; if (!seen.has(k)) { seen.add(k); uniq.push([r, c]); } }
   if (uniq.length < 2) return;
-  if (G.energy < 1) { toast('Потрібна ⚡ — очищай лінії або грай в аркаду', 3); sfx.bad(); LOG.ev('chain_fail', { g: G.gameNo, n: uniq.length, why: 'energy' }); return; }
+  if (G.energy < 1) { toast('Не вистачає ⚡. Очищай лінії або зіграй аркаду', 3); sfx.bad(); LOG.ev('chain_fail', { g: G.gameNo, n: uniq.length, why: 'energy' }); return; }
   G.energy--; G.chainsUsed++; G.stats.chains++;
   let targets = uniq;
   if (ch.loop) {
@@ -1779,7 +1779,7 @@ async function checkUpdate() {
     if (!m || m[1] <= BUILD) return;
     updateReady = true; latestBuild = m[1];
     if (['menu', 'over', 'map', 'library', 'lvlend'].includes(G.state)) applyUpdate();
-    else toast('Є нова версія — оновиться в меню', 4);
+    else toast('Вийшла нова версія. Оновиться, коли вийдеш у меню', 4);
   } catch (e) {}
 }
 setTimeout(checkUpdate, 1500);

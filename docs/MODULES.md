@@ -8,7 +8,8 @@ A module is a plain script wrapped in an IIFE that calls `PG.arcade.register(...
 Reference implementations: `js/games/spike.js`, `js/games/stack.js` (arcade) and `js/minis/popit.js` (mini-game).
 
 All text the player sees is **Ukrainian**. Draw with the canvas, no DOM. Generated art (WebP in `img/`) is fine: load it with
-`PG.sprite(path)` / `PG.drawSprite(ctx, path, x, y, h, {rot, flip, alpha, ay})` and draw Ava with
+`PG.sprite(path)` / `PG.drawSprite(ctx, path, x, y, h, {rot, flip, alpha, ay})`, animate a strip of n equal frames with
+`PG.drawStrip(ctx, path, n, frame, x, y, h, {rot, flip, alpha, ay})` and draw Ava with
 `PG.ava.draw(ctx, x, y, size, {pose, t, dir})` (poses: sit, happy, stand, walk, run, sniff, stalk, jump, scared, sleep).
 New characters and items come from the `character-sprites` skill, not from hand-drawn canvas paths.
 

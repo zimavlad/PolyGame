@@ -110,7 +110,7 @@
           if (!s.cur) return;
           // drop the sliding layer
           const off = s.cur.x, kind = s.cur.kind; s.cur = null;
-          if (Math.abs(off) > tol + 0.25) { s.falling.push({ kind, x: off, y: 0, vy: 0, rot: 0 }); slip(A, 'Мимо!'); return; }
+          if (Math.abs(off) > tol + 0.25) { s.falling.push({ kind, x: off, y: 0, vy: 0, rot: 0 }); slip(A, 'Повз!'); return; }
           const prev = s.cake.length ? s.cake[s.cake.length - 1].x + s.plate : s.plate, x2 = clamp(off, prev - tol, prev + tol) - s.plate;
           if (Math.abs(off - prev) > tol) { s.falling.push({ kind, x: off, y: 0, vy: 0, rot: 0 }); slip(A, 'Впало!'); return; }
           const perfect = Math.abs(off - prev) < tol * 0.25;
