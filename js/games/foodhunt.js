@@ -176,6 +176,7 @@
     family: 'Головоломка',
     accent: ACCENT,
     howto: ['Тапни мурах: вони з’їдять свій колір', 'Хто не доїв, чекає в слоті'],
+    boosts: [{ id: 'slot', icon: '➕', name: '+1 слот', price: 4 }, { id: 'hint', icon: '💡', name: 'Підказки', price: 3 }],
     goal: lv => { const a = artOf(lv), n = sizeOf(a); return { count: lv > 40 && n < 70 ? n * 4 : n, unit: 'шматочків' }; },
     twist: lv => { const a = artOf(lv); if (a.boss) return `Бос-страва: ${a.name}!`; if (lv === 41) return 'Нове: дрібні загони, посипка'; if (lv === 71) return 'Нове: 2 слоти й густа посипка'; return ARTS.indexOf(a) >= 9 ? `Страва: ${a.name}` : ''; },
     icon(ctx, x, y, r) {
@@ -367,6 +368,7 @@
       }
       function useful(sq) { return simLap(grid.slice(), W, H, SH, sq.c, sq.n) > 0; }
 
+      inst.boost = id => { if (id === 'slot') { D.slots++; slots.push(null); } if (id === 'hint') { D.hint = true; D.smartHint = true; } };
       inst.idle = (dt, A) => { S.clk += dt; geo(A); };
       inst.tap = (x, y) => {
         if (inst.over || !V.cs) return;
@@ -485,8 +487,10 @@
         }
         // first levels: after a pause, point at a squad that can eat right now
         S.hint = null;
-        if (D.hint && !inst.over && S.idle > 3.5) {
-          S.hint = slots.find(s => s && S.clk >= s.at && useful(s)) || queues.map(q => q[0]).find(sq => sq && useful(sq)) || null;
+        if (D.hint && !inst.over && S.idle > (D.smartHint ? 0.8 : 3.5)) {
+          // the paid hint asks the solver for the move that keeps the level winnable; the free one just finds food
+          if (D.smartHint) { if (S.hintFor !== inst.progress) { const path = inst.dbg.solve(); S.smart = path && path.length ? path[0].sq : null; S.hintFor = inst.progress; } }
+          S.hint = (D.smartHint && S.smart && (slots.includes(S.smart) || queues.some(q => q[0] === S.smart)) ? S.smart : null) || slots.find(s => s && S.clk >= s.at && useful(s)) || queues.map(q => q[0]).find(sq => sq && useful(sq)) || null;
           if (S.hint) {
             const j = slots.indexOf(S.hint), qi = queues.findIndex(q => q[0] === S.hint);
             const [x, y] = j >= 0 ? [V.slotX(j), V.slotY] : [V.qX(qi), V.qY];

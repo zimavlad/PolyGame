@@ -51,6 +51,7 @@
     accent: ACCENT,
     thumb: 'img/ava/jump.webp',
     howto: ['Добіжи до воріт. Тапни — Ава стрибне', 'Смаколики дають зірки. Собака? Тримай палець'],
+    boosts: [{ id: 'heart', icon: '❤️', name: '+1 серце', price: 2 }, { id: 'magnet', icon: '🧲', name: 'Магніт 12 с', price: 2 }],
     goal: lv => ({ count: Math.min(250 + (lv - 1) * 60, 700), unit: 'метрів' }),
     twist: lv => ({ 1: 'Розминка: калюжі й смаколики', 2: 'Нове: кущі й каміння', 3: 'Нове: інші собаки — тримай палець', 4: 'Нове: пляж і швидше', 5: 'Нове: кіт — стрибни двічі в повітрі', 6: 'Нове: подвійні калюжі' }[lv] || (lv % 2 ? 'Швидше на 8%' : 'Більше собак і котів')),
     icon(ctx, x, y, r) { if (!PG.ava.draw(ctx, x, y + r * 0.55, r * 1.3, { pose: 'run', t: PG.now, shadow: false })) { ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2); ctx.fill(); } },
@@ -114,7 +115,8 @@
         if (s.hearts <= 0) inst.over = { won: false, cause };
       }
       Object.assign(inst, {
-        start() { s.started = true; },
+        boost(id) { if (id === 'heart') { s.hearts++; s.maxHearts = 4; } if (id === 'magnet') s.magnetStart = true; },
+        start() { s.started = true; if (s.magnetStart) s.magnetUntil = s.t + 12; },
         tap(x, y) {
           s.holdAt = s.t;
           if (dogAhead()) { s.creep = true; return; }
@@ -161,7 +163,7 @@
             } else if ((o.type === 'magnet' || o.type === 'heart') && !o.got && overlap && Math.abs(o.alt - (s.y + 0.06)) < 0.12) {
               o.got = true; const px = A.x + o.x * A.w, py = A.y + (GY - o.alt) * A.h;
               if (o.type === 'magnet') { s.magnetUntil = s.t + 6; PG.floatText(px, py - 30, 'Магніт!', '#F5B12E', 20); }
-              else { s.hearts = Math.min(3, s.hearts + 1); PG.floatText(px, py - 30, '+1 ♥', '#F2615E', 20); }
+              else { s.hearts = Math.min(s.maxHearts || 3, s.hearts + 1); PG.floatText(px, py - 30, '+1 ♥', '#F2615E', 20); }
               PG.sfx.loop(); PG.burst(px, py, o.type === 'magnet' ? '#F5B12E' : '#F2615E', 16, 180);
             } else if (o.type === 'puddle' && overlap && s.y < 0.02 && !o.hit) {
               o.hit = true;
@@ -248,7 +250,7 @@
           const land = s.landAt != null ? Math.min(1, (s.t - s.landAt) / 0.18) : 1, sq = 1 - Math.sin(land * Math.PI) * 0.1;
           if (!blink) { ctx.save(); ctx.translate(ax, gy - lift); ctx.scale(1 / Math.sqrt(sq), sq); ctx.rotate(s.y > 0.01 ? -s.vy * 0.06 : 0); PG.ava.draw(ctx, 0, 0, A.w * 0.235, { pose, t: s.t }); ctx.restore(); }
           // hearts
-          for (let i = 0; i < 3; i++) heart(ctx, A.x + 22 + i * 26, A.y + 24, 22, i < s.hearts);
+          for (let i = 0; i < (s.maxHearts || 3); i++) heart(ctx, A.x + 22 + i * 26, A.y + 24, 22, i < s.hearts);
         }
       });
       return inst;

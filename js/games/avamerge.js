@@ -19,6 +19,7 @@
     accent: ACCENT,
     thumb: 'img/treats/chicken.webp',
     howto: ['Веди пальцем і відпусти — смаколик падає', 'Два однакові злипаються. Збери ціль угорі'],
+    boosts: [{ id: 'wide', icon: '↔️', name: 'Ширший кошик', price: 3 }],
     goal: lv => ({ count: 1, unit: GOALN[targetOf(lv)] }),
     twist: lv => `Зроби: ${GOALN[targetOf(lv)]}` + (lv >= 2 ? ' · кошик вужчий' : ''),
     icon(ctx, x, y, r) { PG.drawSprite(ctx, 'img/treats/chicken.webp', x, y, r * 1.5); },
@@ -35,7 +36,7 @@
       inst._s = s;
       let box = null; // basket in px, recomputed every frame
       const geo = A => {
-        const w = A.w * (0.9 - narrow), x = A.x + (A.w - w) / 2, top = A.y + A.h * 0.24, bottom = A.y + A.h - 34;
+        const w = A.w * (0.9 - (s.wide ? 0 : narrow)), x = A.x + (A.w - w) / 2, top = A.y + A.h * 0.24, bottom = A.y + A.h - 34;
         box = { x, w, top, bottom, h: (bottom - top) / w }; return box;
       };
       function drop() {
@@ -91,6 +92,7 @@
           s.items = s.items.filter(it => !it.dead);
         }
       }
+      inst.boost = id => { if (id === 'wide') s.wide = true; };
       Object.assign(inst, {
         tap(x) { const A = PG.arena; geo(A); s.aim = clamp((x - box.x) / box.w, 0, 1); s.holding = true; },
         move(x) { if (!box) return; s.aim = clamp((x - box.x) / box.w, 0, 1); },

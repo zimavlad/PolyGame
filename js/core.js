@@ -37,6 +37,12 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 };
 let best = Number(store.get('polygame.best', 0)) || 0;
+// bones 🦴: earned by winning any arcade (more for stars) or a path level, spent on boosters before a hard round
+const WALLET = {
+  get: () => Math.max(0, Number(store.get('polygame.bones', 10)) || 0),
+  add(n) { const v = WALLET.get() + n; store.set('polygame.bones', v); return v; },
+  spend(n) { const v = WALLET.get(); if (v < n) return false; store.set('polygame.bones', v - n); return true; }
+};
 let muted = !!store.get('polygame.muted', false);
 let haptics = store.get('polygame.haptics', true) !== false;
 
@@ -882,7 +888,7 @@ function startArcade(id, opts = {}) {
   try { goal = def.goal(level) || goal; } catch (e) { logErr(e.message, 'goal:' + id, 0, 0, e.stack); }
   let twist = '';
   try { twist = typeof def.twist === 'function' ? String(def.twist(level) || '') : ''; } catch (e) { logErr(e.message, 'twist:' + id, 0, 0, e.stack); }
-  Object.assign(AR, { def, level, goal, twist, sub: 'intro', t0: now, endAt: 0, resultAt: 0, from: opts.from || 'rush', onDone: opts.onDone || null, won: false, eGain: 0, sGain: 0, inst: null, startAt: 0 });
+  Object.assign(AR, { bGain: 0, bought: new Set(), boostRects: [], def, level, goal, twist, sub: 'intro', t0: now, endAt: 0, resultAt: 0, from: opts.from || 'rush', onDone: opts.onDone || null, won: false, eGain: 0, sGain: 0, inst: null, startAt: 0 });
   try { AR.inst = def.create(level, arcadeApi(def)); }
   catch (e) { logErr(e.message, 'create:' + id, 0, 0, e.stack); AR.inst = null; }
   if (!AR.inst) { AR.def = null; if (opts.onDone) opts.onDone({ won: false, broken: true }); return; }
@@ -908,7 +914,7 @@ function arcadeUpdate(dt) {
     if (inst.progress >= AR.goal.count && !inst.over) { inst.over = { won: true }; arcCall('win'); }
     if (inst.over) {
       AR.won = !!inst.over.won; AR.sub = 'ending'; AR.endAt = now + (AR.won ? 0.9 : 0.8);
-      if (AR.won) { sfx.win(); buzz(HAP.success); confettiIn(A); PG.reward({ score: 100, energy: 1 }); }
+      if (AR.won) { sfx.win(); buzz(HAP.success); confettiIn(A); PG.reward({ score: 100, energy: 1 }); AR.bGain = 1 + (Number(inst.stars) || 0); WALLET.add(AR.bGain); }
       else { buzz(HAP.thud); }
     }
   } else if (AR.sub === 'ending' && now >= AR.endAt) {
@@ -926,10 +932,20 @@ function confettiIn(A) {
 }
 function arcadeTap(x, y) {
   if (now < G.busyUntil || !AR.inst) return;
-  if (AR.sub === 'intro') { AR.sub = 'play'; AR.startAt = now; arcCall('start'); arcCall('tap', x, y); return; }
+  if (AR.sub === 'intro') {
+    const chip = (AR.boostRects || []).find(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
+    if (chip) { buyBoost(chip.b); return; }
+    AR.sub = 'play'; AR.startAt = now; arcCall('start'); arcCall('tap', x, y); return;
+  }
   if (AR.sub === 'paused') { AR.sub = 'play'; sfx.pick(); return; }
   if (AR.sub === 'play') { arcCall('tap', x, y); return; }
   if (AR.sub === 'result' && now - AR.resultAt > 0.6) endArcade();
+}
+function buyBoost(b) {
+  if (AR.bought.has(b.id)) { sfx.back(); return; }
+  if (!WALLET.spend(b.price)) { sfx.bad(); buzz(HAP.double); AR.noMoneyAt = now; return; }
+  AR.bought.add(b.id); arcCall('boost', b.id);
+  sfx.coin(); buzz(HAP.success); LOG.ev('boost', { id: AR.def.id, boost: b.id, level: AR.level, left: WALLET.get() });
 }
 function endArcade() {
   const res = { won: AR.won, id: AR.def.id, level: AR.level, goal: AR.goal, eGain: AR.eGain };
@@ -972,7 +988,8 @@ function drawArcade() {
   if (AR.sub === 'intro' || AR.sub === 'paused') {
     const cw = Math.min(A.w - 28, 330), howto = AR.sub === 'paused' ? [] : (d.howto || []);
     const tw = AR.sub === 'paused' ? '' : AR.twist;
-    const ch = AR.sub === 'paused' ? 120 : 150 + howto.length * 22 + (tw ? 36 : 0);
+    const boosts = AR.sub === 'paused' ? [] : (d.boosts || []);
+    const ch = AR.sub === 'paused' ? 120 : 150 + howto.length * 22 + (tw ? 36 : 0) + (boosts.length ? 78 : 0);
     const cy0 = A.y + Math.max(14, A.h * 0.06);
     ctx.save();
     ctx.shadowColor = 'rgba(39,48,63,0.16)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
@@ -996,6 +1013,20 @@ function drawArcade() {
       ctx.fillStyle = rgba(d.accent || PAL[3], 0.13); rrect(cx - (cw - 36) / 2, ty - 14, cw - 36, 28, 14); ctx.fill();
       txt(tw, cx, ty, 13.5, INK, { font: FB, weight: 900, max: cw - 56 });
     }
+    AR.boostRects = [];
+    if (boosts.length) { // helpers bought with bones earned in any game
+      const by = y + 92 + howto.length * 22 + (tw ? 38 : 0) + 6, n = boosts.length, bw = Math.min(150, (cw - 30) / n - 8);
+      txt(`Допомога за кісточки · у тебе 🦴 ${WALLET.get()}`, cx, by, 11.5, now - (AR.noMoneyAt || -9) < 1 ? BAD : SOFT, { font: FB, weight: 900, max: cw - 24 });
+      boosts.forEach((b, i) => {
+        const bx = cx - (n * (bw + 8) - 8) / 2 + i * (bw + 8), r = { x: bx, y: by + 12, w: bw, h: 40, b };
+        const own = AR.bought.has(b.id), can = WALLET.get() >= b.price;
+        ctx.fillStyle = own ? rgba(GOOD, 0.18) : rgba(d.accent || PAL[3], can ? 0.12 : 0.05); rrect(r.x, r.y, r.w, r.h, 14); ctx.fill();
+        ctx.strokeStyle = own ? GOOD : rgba(d.accent || PAL[3], can ? 0.55 : 0.2); ctx.lineWidth = 2; ctx.stroke();
+        txt(`${b.icon} ${b.name}`, bx + bw / 2, r.y + 14, 12, can || own ? INK : SOFT, { font: FB, weight: 900, max: bw - 10 });
+        txt(own ? '✓ взято' : `🦴 ${b.price}`, bx + bw / 2, r.y + 29, 11, own ? GOOD : can ? (d.accent || PAL[3]) : SOFT, { font: FB, weight: 900 });
+        AR.boostRects.push(r);
+      });
+    }
     txt('ТАПНИ, ЩОБ ПОЧАТИ', cx, cy0 + ch - 20, 13, rgba(d.accent || PAL[3], 0.6 + 0.4 * Math.sin(now * 6)), { font: FD, max: cw - 24 });
   }
   if (AR.sub === 'result') {
@@ -1005,6 +1036,7 @@ function drawArcade() {
     const rows = [[cap(g.unit), `${prog}/${g.count}`], ['Енергія', `+${AR.eGain} ⚡`], ['Очки', `+${AR.sGain}`]];
     if (!onPath) rows.push(AR.won ? ['Наступного разу', `рівень ${AR.level + 1}`] : ['Рівень гри', String(AR.level)]);
     if (AR.won && AR.inst.stars) rows.unshift(['Зірки', '★'.repeat(AR.inst.stars) + '☆'.repeat(3 - AR.inst.stars)]);
+    if (AR.bGain) rows.push(['Кісточки', `+${AR.bGain} 🦴 (всього ${WALLET.get()})`]);
     drawPanel(AR.won ? (onPath ? 'Пройдено!' : `Рівень ${AR.level} пройдено!`) : 'Майже вийшло', d.accent || PAL[3], rows,
       AR.resultAt, AR.from === 'rush' ? 'Тапни, щоб повернутись' : 'Тапни, щоб продовжити');
   }
@@ -1762,7 +1794,7 @@ window.PG = {
   circle, rrect, txt, dot, digit, bolt, wrapText, drawGameIcon, withCtx,
   sfx, tone, buzz, HAP, burst, floatText, shake, confetti, reward,
   log: (type, data) => LOG.ev(type, data),
-  arcade: ARC, ads: ADS,
+  arcade: ARC, ads: ADS, wallet: WALLET,
   // used by js/levels.js
   G, store, LOG, $, showOverlay, closePause, newPuzzle, quitGame, startArcade, showAd, sudokuSolution, after, toast, refillTray,
   get updateReady() { return updateReady; }, applyUpdate, gameOver, levelCheck,

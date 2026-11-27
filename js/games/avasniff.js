@@ -25,6 +25,7 @@
     accent: ACCENT,
     thumb: 'img/ava/sniff.webp',
     howto: ['Тапни клітинку: Ава понюхає й покаже, скільки кроків до кісточки', 'Знайди за кілька нюхів — і вона викопає'],
+    boosts: [{ id: 'nose', icon: '👃', name: '+2 нюхи щоразу', price: 3 }],
     goal: lv => ({ count: spec(lv).bones, unit: 'кісточок' }),
     twist: lv => ({ 1: 'Розминка: 7 нюхів на кісточку', 2: 'Нове: кущі закривають клітинки', 3: 'Нове: смердюча шкарпетка-обманка', 4: 'Нове: сусідський кіт', 5: 'Менше нюхів', 6: 'Нове: дві кісточки одночасно' }[lv] || 'Менше нюхів, більше кущів'),
     icon(ctx, x, y, r) { if (!PG.ava.draw(ctx, x, y + r * 0.6, r * 1.5, { pose: 'sniff', shadow: false })) PG.ava.bone(ctx, x, y, r * 1.2, -0.4); },
@@ -48,7 +49,7 @@
         const need = sp.pair ? 2 : 1, picks = shuffle([...Array(N).keys()].filter(i => free(i) && s.tiles[i].state === 'grass'));
         s.bones = picks.slice(0, need);
         if (sp.sock && (s.sock < 0 || s.tiles[s.sock].state !== 'grass')) { const opts = picks.slice(need).filter(i => s.bones.every(b => dist(i, b) >= 3)); s.sock = opts.length ? opts[0] : -1; }
-        s.sniffs = sp.sniffs + (sp.pair ? 2 : 0);
+        s.sniffs = sp.sniffs + (sp.pair ? 2 : 0) + (s.extra || 0);
       }
       hideBones();
       function moveCat() { if (!sp.cat) return; const opts = [...Array(N).keys()].filter(i => free(i) && i !== s.target); s.cat = opts.length ? opts[randi(opts.length)] : -1; }
@@ -61,6 +62,7 @@
       }
       function say(text, col) { s.msg = { text, col: col || '#27303F', t: s.t }; }
       Object.assign(inst, {
+        boost(id) { if (id === 'nose') { s.extra = 2; s.sniffs += 2; } },
         start() { s.skip = true; },
         tap(x, y) {
           if (s.skip) { s.skip = false; return; }
@@ -141,7 +143,7 @@
           const top = A.y + 12;
           ctx.fillStyle = 'rgba(255,255,255,0.9)'; PG.rrect(A.x + 10, top - 2, A.w - 20, 34, 17); ctx.fill();
           txt('Нюхи', A.x + 40, top + 15, 12, '#8A5A2E', { font: FB, weight: 900 });
-          const maxN = sp.sniffs + (sp.pair ? 2 : 0);
+          const maxN = sp.sniffs + (sp.pair ? 2 : 0) + (s.extra || 0);
           for (let k = 0; k < maxN; k++) { ctx.fillStyle = k < s.sniffs ? '#27303F' : 'rgba(39,48,63,0.15)'; ctx.beginPath(); ctx.ellipse(A.x + 70 + k * 17, top + 15, 6.5, 5, 0, 0, Math.PI * 2); ctx.fill(); }
           PG.ava.bone(ctx, A.x + A.w - 62, top + 15, 16, -0.4, '#C9864A');
           txt(`${inst.progress}/${sp.bones}`, A.x + A.w - 34, top + 15, 14, '#27303F', { font: FD });

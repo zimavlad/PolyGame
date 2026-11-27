@@ -6,16 +6,25 @@
   const { FD, FB, clamp, lerp, txt, rgba } = PG;
   const ACCENT = '#8E5CF7';
   // note string: NAME OCTAVE [:eighths], e.g. "E5:2 D#5 C5:4"
+  // public-domain melodies (folk, classics) and two of our own in a pop-punk and a pop style; the fast ones come later
   const SONGS = [
     { name: 'Зірочка', by: 'народна', notes: 'C5:2 C5:2 G5:2 G5:2 A5:2 A5:2 G5:4 F5:2 F5:2 E5:2 E5:2 D5:2 D5:2 C5:4 G5:2 G5:2 F5:2 F5:2 E5:2 E5:2 D5:4' },
     { name: 'Ода до радості', by: 'Бетховен', notes: 'E5:2 E5:2 F5:2 G5:2 G5:2 F5:2 E5:2 D5:2 C5:2 C5:2 D5:2 E5:2 E5:3 D5:1 D5:4 E5:2 E5:2 F5:2 G5:2 G5:2 F5:2 E5:2 D5:2 C5:2 C5:2 D5:2 E5:2 D5:3 C5:1 C5:4' },
+    { name: 'Коробейники', by: 'народна, мелодія з «Тетрісу»', notes: 'E5:2 B4:1 C5:1 D5:2 C5:1 B4:1 A4:2 A4:1 C5:1 E5:2 D5:1 C5:1 B4:3 C5:1 D5:2 E5:2 C5:2 A4:2 A4:4 D5:3 F5:1 A5:2 G5:1 F5:1 E5:3 C5:1 E5:2 D5:1 C5:1 B4:2 B4:1 C5:1 D5:2 E5:2 C5:2 A4:2 A4:4' },
     { name: 'Щедрик', by: 'Леонтович', notes: 'C5:2 B4:1 C5:1 A4:2 C5:2 B4:1 C5:1 A4:2 C5:2 B4:1 C5:1 A4:2 C5:2 B4:1 C5:1 A4:2 E5:2 D5:1 E5:1 C5:2 E5:2 D5:1 E5:1 C5:2 E5:2 D5:1 E5:1 C5:2 E5:2 D5:1 E5:1 C5:2 A5:1 A5:1 A5:1 G5:1 F5:1 F5:1 F5:1 E5:1 D5:1 D5:1 D5:1 C5:1 B4:1 B4:1 B4:1 A4:1' },
     { name: 'Jingle Bells', by: 'Пірпонт', notes: 'E5:2 E5:2 E5:4 E5:2 E5:2 E5:4 E5:2 G5:2 C5:3 D5:1 E5:8 F5:2 F5:2 F5:3 F5:1 F5:2 E5:2 E5:2 E5:1 E5:1 E5:2 D5:2 D5:2 E5:2 D5:4 G5:4' },
+    { name: 'Скейтпарк', by: 'оригінальна, поп-панк', notes: 'D5:1 D5:1 F#5:1 A5:1 A5:1 F#5:1 E5:1 D5:1 E5:1 E5:1 G5:1 B5:1 A5:2 F#5:2 D5:1 D5:1 F#5:1 A5:1 B5:1 A5:1 F#5:1 E5:1 D5:1 E5:1 F#5:1 E5:1 D5:4 B4:1 D5:1 E5:1 F#5:1 G5:2 F#5:1 E5:1 F#5:1 A5:1 B5:1 A5:1 F#5:2 E5:2 D5:1 D5:1 F#5:1 A5:1 D6:2 C#6:1 B5:1 A5:2 F#5:1 E5:1 D5:4' },
     { name: 'З днем народження', by: 'Гілл', notes: 'G4:1 G4:1 A4:2 G4:2 C5:2 B4:4 G4:1 G4:1 A4:2 G4:2 D5:2 C5:4 G4:1 G4:1 G5:2 E5:2 C5:2 B4:2 A4:4 F5:1 F5:1 E5:2 C5:2 D5:2 C5:4' },
+    { name: 'У печері гірського короля', by: 'Гріг', notes: 'A4:1 B4:1 C5:1 D5:1 E5:1 C5:1 E5:2 D#5:1 B4:1 D#5:2 D5:1 A#4:1 D5:2 A4:1 B4:1 C5:1 D5:1 E5:1 C5:1 E5:1 A5:1 G5:1 E5:1 C5:1 E5:1 G5:4 A4:1 B4:1 C5:1 D5:1 E5:1 C5:1 E5:2 D#5:1 B4:1 D#5:2 D5:1 A#4:1 D5:2 A4:1 B4:1 C5:1 D5:1 E5:1 C5:1 E5:1 A5:1 G5:1 E5:1 C5:1 E5:1 A5:4' },
     { name: 'До Елізи', by: 'Бетховен', notes: 'E5:1 D#5:1 E5:1 D#5:1 E5:1 B4:1 D5:1 C5:1 A4:3 C4:1 E4:1 A4:1 B4:3 E4:1 G#4:1 B4:1 C5:3 E4:1 E5:1 D#5:1 E5:1 D#5:1 E5:1 B4:1 D5:1 C5:1 A4:3 C4:1 E4:1 A4:1 B4:3 E4:1 C5:1 B4:1 A4:4' },
+    { name: 'Літо на повну', by: 'оригінальна, поп', notes: 'E5:1 G5:2 E5:1 D5:1 C5:2 D5:1 E5:1 G5:2 A5:1 G5:3 E5:1 G5:2 E5:1 D5:1 C5:2 A4:1 C5:1 D5:2 C5:4 F5:1 A5:2 F5:1 E5:1 G5:2 E5:1 D5:1 F5:2 E5:1 D5:1 C5:2 D5:1 E5:1 G5:2 A5:1 C6:3 B5:1 A5:1 G5:4' },
     { name: 'Тиха ніч', by: 'Грубер', notes: 'G4:3 A4:1 G4:2 E4:6 G4:3 A4:1 G4:2 E4:6 D5:4 D5:2 B4:6 C5:4 C5:2 G4:6 A4:4 A4:2 C5:3 B4:1 A4:2 G4:3 A4:1 G4:2 E4:6' },
+    { name: 'Турецький марш', by: 'Моцарт', notes: 'B4:1 A4:1 G#4:1 A4:1 C5:2 D5:1 C5:1 B4:1 C5:1 E5:2 F5:1 E5:1 D#5:1 E5:1 B5:1 A5:1 G#5:1 A5:1 B5:1 A5:1 G#5:1 A5:1 C6:4 A5:2 C6:2 B5:1 A5:1 G5:1 A5:1 B5:2 A5:1 G5:1 A5:1 B5:1 A5:1 G5:1 F#5:1 E5:4' },
     { name: 'Канкан', by: 'Оффенбах', notes: 'C5:2 D5:1 F5:1 E5:1 D5:1 G5:2 G5:2 G5:2 A5:1 E5:1 F5:1 D5:1 D5:2 D5:2 D5:2 F5:1 E5:1 D5:1 C5:1 C6:1 B5:1 A5:1 G5:1 F5:1 E5:1 D5:1 C5:2 D5:1 F5:1 E5:1 D5:1 G5:2 G5:2 G5:2 A5:1 E5:1 F5:1 D5:1 D5:2 D5:1 G5:1 D5:1 E5:1 C5:2' },
-    { name: 'Менует', by: 'Бах', notes: 'D5:2 G4:1 A4:1 B4:1 C5:1 D5:2 G4:2 G4:2 E5:2 C5:1 D5:1 E5:1 F#5:1 G5:2 G4:2 G4:2 C5:2 D5:1 C5:1 B4:1 A4:1 B4:2 C5:1 B4:1 A4:1 G4:1 F#4:2 G4:1 A4:1 B4:1 G4:1 A4:4' }
+    { name: 'The Entertainer', by: 'Джоплін', notes: 'D5:1 D#5:1 E5:1 C6:2 E5:1 C6:2 E5:1 C6:5 C6:1 D6:1 D#6:1 E6:1 C6:1 D6:1 E6:2 B5:1 D6:2 C6:5 D5:1 D#5:1 E5:1 C6:2 E5:1 C6:2 E5:1 C6:5 A5:1 G5:1 F#5:1 A5:1 C6:1 E6:2 D6:1 C6:1 A5:1 D6:5' },
+    { name: 'Менует', by: 'Бах', notes: 'D5:2 G4:1 A4:1 B4:1 C5:1 D5:2 G4:2 G4:2 E5:2 C5:1 D5:1 E5:1 F#5:1 G5:2 G4:2 G4:2 C5:2 D5:1 C5:1 B4:1 A4:1 B4:2 C5:1 B4:1 A4:1 G4:1 F#4:2 G4:1 A4:1 B4:1 G4:1 A4:4' },
+    { name: 'Вільгельм Телль, галоп', by: 'Россіні', notes: 'G4:1 G4:1 G4:2 G4:1 G4:1 G4:2 G4:1 G4:1 C5:2 D5:2 E5:2 G4:1 G4:1 G4:2 G4:1 G4:1 G4:2 G4:1 G4:1 C5:2 E5:2 D5:2 B4:2 G4:1 G4:1 G4:2 G4:1 G4:1 G4:2 G4:1 G4:1 C5:2 D5:2 E5:2 C5:1 E5:1 G5:4 F5:1 E5:1 D5:1 C5:1 E5:2 D5:2 G4:2 C5:4' },
+    { name: 'Політ джмеля', by: 'Римський-Корсаков', notes: 'E5:1 D#5:1 D5:1 C#5:1 D5:1 C#5:1 C5:1 B4:1 C5:1 C#5:1 D5:1 C#5:1 C5:1 B4:1 A#4:1 A4:1 A#4:1 B4:1 C5:1 C#5:1 D5:1 D#5:1 E5:1 F5:1 E5:1 D#5:1 D5:1 C#5:1 C5:1 F5:1 E5:1 D#5:1 E5:1 D#5:1 D5:1 C#5:1 D5:1 C#5:1 C5:1 B4:1 C5:1 C#5:1 D5:1 D#5:1 E5:4' }
   ];
   const SEMI = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
   function parse(str) {
@@ -47,6 +56,7 @@
     family: 'Музика',
     accent: ACCENT,
     howto: ['Тапай темні плитки знизу вгору', 'Три серця: промах забирає одне'],
+    boosts: [{ id: 'hearts', icon: '❤️', name: '+2 серця', price: 2 }, { id: 'slow', icon: '🐢', name: 'Повільніше', price: 3 }],
     goal: lv => ({ count: parse(SONGS[(lv - 1) % SONGS.length].notes).length * 2, unit: 'нот' }),
     twist: lv => { const sg = SONGS[(lv - 1) % SONGS.length]; return `«${sg.name}»${lv > 1 ? ' · швидше' : ''}`; },
     icon(ctx, x, y, r) { for (let i = 0; i < 3; i++) { ctx.fillStyle = i === 1 ? '#27303F' : '#FFFFFF'; ctx.fillRect(x - r + i * r * 0.68, y - r * 0.8, r * 0.6, r * 1.6); } },
@@ -56,8 +66,8 @@
       // rows: each note starts at the running sum of eighth lengths; speed in eighths per second
       let acc = 0; const tiles = notes.map((n, i) => { const t = { at: acc, lane: ln[i], n, hit: false }; acc += n.len; return t; });
       const lap = Math.floor((level - 1) / SONGS.length);
-      const speed0 = Math.min(3.9 + (level - 1) * 0.35 + lap * 0.6, 8.5);
-      const s = { t: 0, pos: -4, speed: speed0, next: 0, flash: [], miss: null, started: false, glow: 0, lives: 3 };
+      const speed0 = Math.min(3.9 + (level - 1) * 0.2 + lap * 0.5, 7); // a hard ceiling: level 12 at 8.5 was a wall (20 losses in a row)
+      const s = { t: 0, pos: -4, speed: speed0, next: 0, flash: [], miss: null, started: false, glow: 0, lives: 3, maxLives: 3, slowK: 1 };
       const inst = { progress: 0, over: null, stats: { level, song: song.name } };
       inst._s = s; s.tiles = tiles;
       const ROW = A => A.h / 7.5; // height of one eighth
@@ -71,6 +81,7 @@
         if (s.lives <= 0) inst.over = { won: false, cause: why };
       }
       Object.assign(inst, {
+        boost(id) { if (id === 'hearts') { s.lives += 2; s.maxLives += 2; } if (id === 'slow') s.slowK = 0.8; },
         start() { s.started = true; s.skip = true; }, // the tap that starts the round is not a note
         tap(x, y) {
           const A = PG.arena; if (inst.over) return;
@@ -92,7 +103,7 @@
         update(dt, A) {
           s.t += dt; s.glow = Math.max(0, s.glow - dt * 3);
           if (inst.over) return;
-          s.speed = speed0 * (inst.progress < once.length ? 1 + 0.15 * inst.progress / once.length : 1.3 + 0.2 * (inst.progress - once.length) / once.length);
+          s.speed = s.slowK * speed0 * (inst.progress < once.length ? 1 + 0.15 * inst.progress / once.length : 1.2 + 0.12 * (inst.progress - once.length) / once.length);
           s.pos += s.speed * dt;
           const tl = tiles[s.next];
           if (tl && tileY(A, tl) > A.y + A.h + 4) fail(tl.lane, A, 'missed');
@@ -124,7 +135,7 @@
             if (i === s.next) { ctx.strokeStyle = rgba('#F5B12E', 0.6 + 0.4 * Math.sin(s.t * 10)); ctx.lineWidth = 2.5; PG.rrect(x, yt, w, h, 10); ctx.stroke(); if (!s.started || inst.progress === 0) txt('ТАП', x + w / 2, yt + h / 2, 14, '#FFFFFF', { font: FD }); }
           }
           if (s.miss && (inst.over || s.t - s.miss.t < 0.5)) { ctx.fillStyle = rgba('#F2615E', 0.4 * (0.5 + 0.5 * Math.sin(s.t * 18))); ctx.fillRect(A.x + s.miss.lane * lw, A.y, lw, A.h); }
-          for (let i = 0; i < 3; i++) { ctx.fillStyle = i < s.lives ? '#F2615E' : 'rgba(94,64,170,0.18)'; ctx.beginPath(); const hx = A.x + A.w - 18 - i * 20, hy = A.y + 18; ctx.moveTo(hx, hy + 5); ctx.bezierCurveTo(hx - 9, hy - 1, hx - 6, hy - 9, hx, hy - 4); ctx.bezierCurveTo(hx + 6, hy - 9, hx + 9, hy - 1, hx, hy + 5); ctx.fill(); }
+          for (let i = 0; i < s.maxLives; i++) { ctx.fillStyle = i < s.lives ? '#F2615E' : 'rgba(94,64,170,0.18)'; ctx.beginPath(); const hx = A.x + A.w - 18 - i * 20, hy = A.y + 18; ctx.moveTo(hx, hy + 5); ctx.bezierCurveTo(hx - 9, hy - 1, hx - 6, hy - 9, hx, hy - 4); ctx.bezierCurveTo(hx + 6, hy - 9, hx + 9, hy - 1, hx, hy + 5); ctx.fill(); }
         }
       });
       return inst;

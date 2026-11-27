@@ -114,6 +114,7 @@ function finishLevel(n, won, stars, info) {
     p.stars[n] = Math.max(Number(p.stars[n]) || 0, stars);
     saveProg(p);
     PG.sfx.win(); PG.confetti(70); PG.buzz(PG.HAP.success);
+    if (!info.arcade) PG.wallet.add(stars >= 3 ? 2 : 1); // arcade nodes are paid by the arcade host already
   }
   PG.log('level_end', {
     n, won, stars, reason: info.reason || '', arcade: !!info.arcade, score: G.score,
@@ -254,6 +255,7 @@ function openLibrary() {
   for (const d of PG.ads.list()) {
     M.appendChild(tile('#F5B12E', d.title[0], d.title, d.hook || '', () => playMini(d.id)));
   }
+  $('libBones').textContent = `🦴 ${PG.wallet.get()}`;
   showOverlay('library'); G.state = 'library'; G.boardVisible = false; G.mode = 'solo'; G.lvl = null;
   PG.log('library_open', {});
 }
@@ -302,7 +304,7 @@ $('restart').addEventListener('click', () => {
 });
 
 /* ================= BIG UPDATE pop-up ================= */
-const UPDATE_KEY = 'big-ava-2'; // bumped when the update grows, so everyone sees what is new
+const UPDATE_KEY = 'big-ava-3'; // bumped when the update grows, so everyone sees what is new
 function showUpdate() {
   const el = $('update'); if (!el) return;
   const conf = $('updConf'); conf.innerHTML = '';
